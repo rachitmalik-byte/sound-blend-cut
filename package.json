@@ -4,7 +4,6 @@
   "description": "Local offline audio workstation for American English phonics blending and natural vowel prolongation",
   "main": "index.html",
   "scripts": {
-    "build": "echo 'Vercel static build complete'",
     "start": "python -m http.server 8080"
   },
   "keywords": [

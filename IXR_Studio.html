@@ -282,7 +282,16 @@ html, body {
   border-bottom: 1px solid var(--border); position: relative;
   transition: height 0.2s ease; flex-shrink: 0; overflow: hidden;
 }
-#video-section.collapsed { height: 0 !important; border-bottom: none; }
+#video-section.collapsed {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
 #video-el { max-width: 100%; max-height: 100%; border-radius: var(--radius-sm); }
 #video-placeholder { color: var(--text-muted); font-size: 11.5px; position: absolute; }
 #video-close {
@@ -367,7 +376,28 @@ html, body {
   height: 168px; background: var(--bg-panel); border-top: 1px solid var(--border);
   display: flex; flex-shrink: 0; overflow: hidden; transition: height 0.2s;
 }
-#eq-section.collapsed { height: 0 !important; border-top: none; }
+#eq-section.collapsed {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.sleek-kbd {
+  display: inline-block; padding: 2px 6px; font-family: var(--font-mono); font-size: 11px;
+  background: var(--bg-card-sub); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text); box-shadow: 0 1px 0 rgba(0,0,0,0.4);
+}
+.clip-peak-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  transition: background 0.1s, box-shadow 0.1s; display: inline-block; flex-shrink: 0;
+}
+.clip-peak-dot.clipped {
+  background: var(--red); box-shadow: 0 0 8px var(--red);
+}
 #eq-canvas { flex: 1; display: block; cursor: crosshair; min-width: 0; }
 #eq-sidebar {
   width: 208px; padding: 12px 14px; border-left: 1px solid var(--border);
@@ -630,10 +660,11 @@ input[type=text], input[type=number] {
 
   <!-- Right Group -->
   <div class="transport-right-group">
-    <div class="master-vol-capsule" title="Master Volume">
+    <div class="master-vol-capsule" title="Master Volume & Peak Level">
       <span class="vol-icon">🔊</span>
       <input type="range" id="master-vol" min="0" max="1.5" step="0.01" value="1" style="width:68px">
       <span id="master-vol-label" class="vol-label">100%</span>
+      <span id="master-peak-dot" class="clip-peak-dot" title="Signal Output Peak Indicator"></span>
     </div>
     <div class="sep-v"></div>
     <button class="pill-toggle" id="btn-toggle-video" title="Toggle Video Panel [V]">
@@ -673,7 +704,7 @@ input[type=text], input[type=number] {
   <div id="center-panel">
 
     <!-- Video Preview Section -->
-    <div id="video-section" class="collapsed">
+    <div id="video-section" class="collapsed" style="display:none !important">
       <video id="video-el" controls></video>
       <div id="video-placeholder">No video file loaded</div>
       <button id="video-close" title="Hide video preview">✕</button>
@@ -684,7 +715,7 @@ input[type=text], input[type=number] {
       <!-- Minimalist Toolbar -->
       <div id="tl-toolbar">
         <div class="tool-group">
-          <button class="tool-btn" id="btn-zoom-out" title="Zoom Out [-]">">−</button>
+          <button class="tool-btn" id="btn-zoom-out" title="Zoom Out [-]">−</button>
           <input type="range" id="zoom-slider" min="20" max="800" value="100" style="width:72px">
           <button class="tool-btn" id="btn-zoom-in" title="Zoom In [+]">+</button>
           <span id="zoom-label" class="meta-tag">100px/s</span>
@@ -692,10 +723,20 @@ input[type=text], input[type=number] {
         <div class="sep-v"></div>
         <div class="tool-group">
           <button class="tool-action-btn" id="btn-split" title="Split Clip at Playhead [S]">✂ Split</button>
+          <button class="tool-action-btn" id="btn-duplicate" title="Duplicate Selected Clip [Ctrl+D]">📋 Duplicate</button>
           <button class="tool-action-btn danger-hover" id="btn-del-clip" title="Delete Selected Clip [Del]">🗑 Delete</button>
+        </div>
+        <div class="sep-v"></div>
+        <div class="tool-group">
+          <button class="tool-action-btn" id="btn-export-clip-quick" title="Export Selected Clip [Shift+E]">⬇ Export Clip</button>
         </div>
         <div class="spacer"></div>
         <div class="tool-group">
+          <span id="autosave-badge" style="font-size:10px;color:var(--text-muted);margin-right:6px;display:inline-flex;align-items:center;gap:4px">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green)"></span> Saved
+          </span>
+          <button class="tool-action-btn" id="btn-reset-project" title="Start new session / clear timeline">📄 New</button>
+          <button class="tool-btn" id="btn-help-shortcuts" title="Keyboard Shortcuts [?]">⌨</button>
           <button class="tool-btn" id="btn-undo" title="Undo [Ctrl+Z]">↩</button>
           <button class="tool-btn" id="btn-redo" title="Redo [Ctrl+Y]">↪</button>
         </div>
@@ -720,7 +761,7 @@ input[type=text], input[type=number] {
     </div>
 
     <!-- 5-Band EQ Section -->
-    <div id="eq-section" class="collapsed">
+    <div id="eq-section" class="collapsed" style="display:none !important">
       <canvas id="eq-canvas"></canvas>
       <div id="eq-sidebar">
         <div class="eq-title">5-Band Parametric EQ</div>
@@ -829,6 +870,7 @@ input[type=text], input[type=number] {
         <div class="vp-action-stack">
           <button class="action-btn-preview" id="btn-audition-slow">▶ Audition Blended Sound</button>
           <button class="action-btn-apply" id="btn-apply-slow">✓ Apply Sound Blending to Clip</button>
+          <button class="tool-action-btn" id="btn-export-slow-direct" style="width:100%;justify-content:center;padding:6px 0" title="Export slowed audio directly as MP3/WAV">⬇ Export Slowed Sound</button>
         </div>
       </div>
     </div>
@@ -889,6 +931,7 @@ input[type=text], input[type=number] {
         <div class="vp-action-stack">
           <button class="action-btn-preview" id="btn-preview-stretch">▶ Preview Stretched Audio</button>
           <button class="action-btn-apply" id="btn-apply-stretch">✓ Apply Vowel Stretch</button>
+          <button class="tool-action-btn" id="btn-export-vowel-direct" style="width:100%;justify-content:center;padding:6px 0" title="Export sustained vowel sound directly as MP3/WAV">⬇ Export Prolonged Vowel</button>
         </div>
       </div>
     </div>
@@ -922,12 +965,19 @@ input[type=text], input[type=number] {
 ══════════════════════════════════════════════════════════ -->
 <div class="modal-overlay hidden" id="export-modal">
   <div class="modal">
-    <h2>⬇ Export Timeline Audio</h2>
+    <h2>⬇ Export Audio</h2>
     <div style="display:flex;flex-direction:column;gap:12px">
       <div>
         <label style="font-size:10.5px;color:var(--text-dim);font-weight:600">Export Scope</label>
-        <div style="margin-top:4px">
-          <label style="font-size:11.5px;color:var(--text)"><input type="radio" name="exp-region" value="all" checked> Active timeline region (no trailing silence)</label>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+          <label id="exp-scope-clip-lbl" style="font-size:11.5px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="exp-scope" value="clip" checked>
+            <span><strong>Selected Clip Only:</strong> <span id="exp-clip-name" style="color:var(--accent);font-family:var(--font-mono)">Clip</span></span>
+          </label>
+          <label style="font-size:11.5px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="exp-scope" value="timeline">
+            <span><strong>Entire Timeline Mix:</strong> All tracks combined (trimmed from first to last sound)</span>
+          </label>
         </div>
       </div>
       <div>
@@ -963,6 +1013,36 @@ input[type=text], input[type=number] {
       <button class="secondary sm" id="btn-exp-preview">▶ Render Preview</button>
       <button class="primary sm" id="btn-exp-save">💾 Download File</button>
       <button class="secondary sm" id="btn-exp-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SHORTCUTS MODAL
+══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="shortcuts-modal">
+  <div class="modal" style="max-width:440px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h2 style="margin:0">⌨ Keyboard Shortcuts</h2>
+      <button class="secondary sm" id="btn-close-shortcuts" style="padding:2px 8px;font-size:13px">✕</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text)">
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Space</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Play / Pause timeline</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">S</kbd> / <kbd class="sleek-kbd">C</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Split clip at playhead</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Ctrl+D</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Duplicate selected clip</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Del</kbd> / <kbd class="sleek-kbd">Backspace</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Delete selected clip</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Ctrl+Z</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Undo last action</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Ctrl+Y</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Redo action</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Shift+E</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Open Export dialog</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">V</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Toggle Video preview</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">E</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Toggle 5-Band EQ drawer</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">?</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Show keyboard shortcuts</td></tr>
+        <tr><td style="padding:6px 0"><kbd class="sleek-kbd">Esc</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Close modal dialogs</td></tr>
+      </tbody>
+    </table>
+    <div class="modal-footer" style="margin-top:16px">
+      <button class="primary sm" id="btn-shortcuts-ok" style="width:100%">Got it</button>
     </div>
   </div>
 </div>
@@ -1092,6 +1172,24 @@ function getSelClip() {
 }
 function getMedia(id) { return S.mediaFiles.find(m => m.id === id) || null; }
 
+function getAudioStart() {
+  let min = Infinity;
+  for (const t of S.tracks) {
+    if (t.mute) continue;
+    for (const c of t.clips) {
+      if (c.startTime < min) min = c.startTime;
+    }
+  }
+  if (!isFinite(min)) {
+    for (const t of S.tracks) {
+      for (const c of t.clips) {
+        if (c.startTime < min) min = c.startTime;
+      }
+    }
+  }
+  return isFinite(min) ? min : 0;
+}
+
 function getAudioEnd() {
   let max = 0;
   for (const t of S.tracks) {
@@ -1112,6 +1210,394 @@ function getAudioEnd() {
   return max;
 }
 
+function setVideoVisible(show) {
+  S.showVideo = !!show;
+  const el = document.getElementById('video-section');
+  const btn = document.getElementById('btn-toggle-video');
+  if (el) {
+    el.classList.toggle('collapsed', !S.showVideo);
+    el.style.display = S.showVideo ? 'flex' : 'none';
+  }
+  if (btn) btn.classList.toggle('active', S.showVideo);
+}
+
+function setEQVisible(show) {
+  S.showEQ = !!show;
+  const el = document.getElementById('eq-section');
+  const btn = document.getElementById('btn-toggle-eq');
+  if (el) {
+    el.classList.toggle('collapsed', !S.showEQ);
+    el.style.display = S.showEQ ? 'flex' : 'none';
+  }
+  if (btn) btn.classList.toggle('active', S.showEQ);
+  if (S.showEQ) setTimeout(renderEQ, 50);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SESSION PERSISTENCE (INDEXEDDB & LOCALSTORAGE)
+// ─────────────────────────────────────────────────────────────────
+const DB_NAME = 'IXR_Studio_DB';
+const DB_VERSION = 1;
+
+function openDB() {
+  return new Promise((resolve) => {
+    if (!window.indexedDB) return resolve(null);
+    try {
+      const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('media')) {
+          db.createObjectStore('media', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('project')) {
+          db.createObjectStore('project', { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch(e) {
+      resolve(null);
+    }
+  });
+}
+
+function setAutosaveBadge(state) {
+  const badge = document.getElementById('autosave-badge');
+  if (!badge) return;
+  if (state === 'saving') {
+    badge.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber)"></span> Saving…';
+    badge.style.opacity = '1';
+  } else if (state === 'saved') {
+    badge.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green)"></span> Saved';
+    badge.style.opacity = '0.75';
+  } else {
+    badge.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red)"></span> Unsaved';
+    badge.style.opacity = '1';
+  }
+}
+
+let _saveTimeout = null;
+function scheduleAutoSave() {
+  setAutosaveBadge('saving');
+  clearTimeout(_saveTimeout);
+  _saveTimeout = setTimeout(() => {
+    saveSessionToStorage();
+  }, 500);
+}
+
+async function saveSessionToStorage() {
+  try {
+    const db = await openDB();
+    if (db) {
+      const tx = db.transaction(['media', 'project'], 'readwrite');
+      const mediaStore = tx.objectStore('media');
+      const projStore = tx.objectStore('project');
+
+      const clearReq = mediaStore.clear();
+      await new Promise(res => { clearReq.onsuccess = clearReq.onerror = res; });
+
+      for (const m of S.mediaFiles) {
+        if (!m.buffer) continue;
+        const nc = m.buffer.numberOfChannels;
+        const channels = [];
+        for (let ch = 0; ch < nc; ch++) {
+          channels.push(m.buffer.getChannelData(ch));
+        }
+        mediaStore.put({
+          id: m.id,
+          name: m.name,
+          type: m.type,
+          duration: m.duration,
+          sampleRate: m.sampleRate || m.buffer.sampleRate,
+          numberOfChannels: nc,
+          channels: channels,
+          peaks: m.peaks,
+          color: m.color,
+          videoUrl: m.videoUrl || null
+        });
+      }
+
+      projStore.put({
+        key: 'current',
+        nextMediaId: S.nextMediaId,
+        nextTrackId: S.nextTrackId,
+        nextClipId: S.nextClipId,
+        colorIdx: S.colorIdx,
+        tracks: S.tracks.map(t => ({
+          id: t.id,
+          name: t.name,
+          volume: t.volume,
+          mute: t.mute,
+          solo: t.solo,
+          color: t.color,
+          clips: t.clips.map(c => ({
+            id: c.id,
+            trackId: c.trackId,
+            mediaId: c.mediaId,
+            startTime: c.startTime,
+            offsetInMedia: c.offsetInMedia,
+            duration: c.duration,
+            color: c.color
+          }))
+        })),
+        settings: {
+          zoom: S.zoom,
+          masterVolume: S.masterVolume,
+          playheadTime: S.playheadTime,
+          inspTab: S.inspTab,
+          slowSpeed: S.slowSpeed,
+          slowScope: S.slowScope,
+          slowProfile: S.slowProfile,
+          stretchRatio: S.stretchRatio,
+          vowelStart: S.vowelStart,
+          vowelEnd: S.vowelEnd,
+          eqBands: S.eqBands,
+          eqEnabled: S.eqEnabled,
+          selectedClipId: S.selectedClipId,
+        },
+        savedAt: Date.now()
+      });
+
+      await new Promise((res, rej) => {
+        tx.oncomplete = res;
+        tx.onerror = tx.onabort = rej;
+      });
+    }
+
+    try {
+      localStorage.setItem('ixr-settings', JSON.stringify({
+        theme: S.theme,
+        zoom: S.zoom,
+        masterVolume: S.masterVolume,
+        inspTab: S.inspTab,
+        slowSpeed: S.slowSpeed,
+        slowScope: S.slowScope,
+        slowProfile: S.slowProfile,
+        stretchRatio: S.stretchRatio,
+        eqPreset: document.getElementById('eq-preset')?.value || 'flat'
+      }));
+    } catch(e) {}
+
+    setAutosaveBadge('saved');
+  } catch(e) {
+    console.warn('Auto-save error:', e);
+    setAutosaveBadge('error');
+  }
+}
+
+async function restoreSessionFromStorage() {
+  try {
+    const db = await openDB();
+    if (!db) return false;
+
+    const tx = db.transaction(['media', 'project'], 'readonly');
+    const mediaStore = tx.objectStore('media');
+    const projStore = tx.objectStore('project');
+
+    const projReq = projStore.get('current');
+    const project = await new Promise(res => { projReq.onsuccess = () => res(projReq.result); projReq.onerror = () => res(null); });
+    if (!project) return false;
+
+    const mediaReq = mediaStore.getAll();
+    const rawMediaList = await new Promise(res => { mediaReq.onsuccess = () => res(mediaReq.result || []); mediaReq.onerror = () => res([]); });
+
+    if (rawMediaList.length === 0 && (!project.tracks || project.tracks.every(t => !t.clips || t.clips.length === 0))) {
+      return false;
+    }
+
+    ensureCtx();
+
+    S.mediaFiles = [];
+    for (const rm of rawMediaList) {
+      const nc = rm.numberOfChannels || (rm.channels ? rm.channels.length : 1);
+      const sr = rm.sampleRate || actx.sampleRate;
+      const len = rm.channels && rm.channels[0] ? rm.channels[0].length : 0;
+      if (len > 0) {
+        const buf = actx.createBuffer(nc, len, sr);
+        for (let ch = 0; ch < nc; ch++) {
+          if (rm.channels[ch]) buf.copyToChannel(rm.channels[ch], ch);
+        }
+        S.mediaFiles.push({
+          id: rm.id,
+          name: rm.name,
+          buffer: buf,
+          duration: buf.duration,
+          sampleRate: sr,
+          peaks: rm.peaks || computePeaks(buf, PEAK_RES),
+          type: rm.type || 'audio',
+          videoUrl: rm.videoUrl || null,
+          color: rm.color || '#4a90e2'
+        });
+      }
+    }
+
+    if (project.nextMediaId) S.nextMediaId = project.nextMediaId;
+    if (project.nextTrackId) S.nextTrackId = project.nextTrackId;
+    if (project.nextClipId) S.nextClipId = project.nextClipId;
+    if (project.colorIdx) S.colorIdx = project.colorIdx;
+
+    if (project.tracks && project.tracks.length > 0) {
+      S.tracks = project.tracks;
+    }
+
+    if (project.settings) {
+      const s = project.settings;
+      if (s.zoom) setZoom(s.zoom);
+      if (s.masterVolume !== undefined) {
+        S.masterVolume = s.masterVolume;
+        const mv = document.getElementById('master-vol');
+        if (mv) mv.value = s.masterVolume;
+        const mvl = document.getElementById('master-vol-label');
+        if (mvl) mvl.textContent = `${Math.round(s.masterVolume * 100)}%`;
+      }
+      if (s.slowSpeed) setSlowSpeed(s.slowSpeed);
+      if (s.slowScope) setSlowScope(s.slowScope);
+      if (s.slowProfile) {
+        S.slowProfile = s.slowProfile;
+        const ps = document.getElementById('slow-profile-select');
+        if (ps) ps.value = s.slowProfile;
+      }
+      if (s.stretchRatio) {
+        S.stretchRatio = s.stretchRatio;
+        const srEl = document.getElementById('stretch-ratio-val');
+        if (srEl) srEl.textContent = `${s.stretchRatio.toFixed(1)}×`;
+      }
+      if (s.inspTab) setInspectorTab(s.inspTab);
+      if (s.eqBands) S.eqBands = s.eqBands;
+      if (s.selectedClipId) S.selectedClipId = s.selectedClipId;
+      if (s.playheadTime) S.playheadTime = s.playheadTime;
+    }
+
+    setAutosaveBadge('saved');
+    return true;
+  } catch(e) {
+    console.warn('Session restore failed:', e);
+    return false;
+  }
+}
+
+async function clearProjectSession() {
+  if (!confirm('Start a new session? This will clear all tracks and imported audio from local storage.')) return;
+  try {
+    const db = await openDB();
+    if (db) {
+      const tx = db.transaction(['media', 'project'], 'readwrite');
+      tx.objectStore('media').clear();
+      tx.objectStore('project').clear();
+    }
+  } catch(e) {}
+  try { localStorage.removeItem('ixr-settings'); } catch(e) {}
+
+  S.mediaFiles = [];
+  S.tracks = [];
+  S.nextMediaId = 1;
+  S.nextTrackId = 1;
+  S.nextClipId = 1;
+  S.selectedClipId = null;
+  S.selectedMediaId = null;
+  S.playheadTime = 0;
+  S.history = [];
+  S.historyIdx = -1;
+
+  addTrack('Track 1');
+  addTrack('Track 2');
+  snapshot();
+  renderMediaLibrary();
+  renderTimeline();
+  renderTrackHeaders();
+  renderVowelPanel();
+  updateTimecode();
+  updateStatusBar();
+  status('New blank session started');
+}
+
+function duplicateSelectedClip() {
+  const sel = getSelClip();
+  if (!sel) {
+    status('Select a clip on the timeline to duplicate');
+    return;
+  }
+  const { clip, track } = sel;
+  snapshot();
+
+  const newClip = {
+    id: S.nextClipId++,
+    trackId: track.id,
+    mediaId: clip.mediaId,
+    startTime: Math.round((clip.startTime + clip.duration + 0.05) * 100) / 100,
+    offsetInMedia: clip.offsetInMedia,
+    duration: clip.duration,
+    color: clip.color
+  };
+  track.clips.push(newClip);
+  S.selectedClipId = newClip.id;
+  renderTimeline();
+  renderTrackHeaders();
+  renderVowelPanel();
+  scheduleAutoSave();
+  status(`✓ Duplicated clip to ${fmtTime(newClip.startTime)}`);
+}
+
+async function renderClipAudio(clip, includeFX = false) {
+  const media = getMedia(clip.mediaId);
+  if (!media?.buffer) return null;
+
+  const sr = media.buffer.sampleRate;
+  const nc = media.buffer.numberOfChannels;
+  const startSample = Math.max(0, Math.floor(clip.offsetInMedia * sr));
+  const numSamples = Math.floor(clip.duration * sr);
+  const endSample = Math.min(media.buffer.length, startSample + numSamples);
+  const actualLen = Math.max(1, endSample - startSample);
+
+  if (!includeFX && !S.eqEnabled) {
+    const outBuf = actx.createBuffer(nc, actualLen, sr);
+    for (let ch = 0; ch < nc; ch++) {
+      outBuf.getChannelData(ch).set(media.buffer.getChannelData(ch).subarray(startSample, endSample));
+    }
+    return outBuf;
+  }
+
+  const dur = actualLen / sr;
+  const octx = new OfflineAudioContext(nc, Math.ceil(dur * sr), sr);
+  const track = S.tracks.find(t => t.id === clip.trackId);
+  const trackVol = track ? track.volume : 1.0;
+  const gain = octx.createGain();
+  gain.gain.value = trackVol * S.masterVolume;
+
+  let chainEnd = gain;
+  if (S.eqEnabled) {
+    const filters = [];
+    for (const b of S.eqBands) {
+      const f = octx.createBiquadFilter();
+      f.type = b.type; f.frequency.value = b.freq;
+      f.gain.value = b.gain; f.Q.value = b.Q;
+      filters.push(f);
+    }
+    for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1]);
+    filters[filters.length - 1].connect(gain);
+    chainEnd = filters[0];
+  }
+  gain.connect(octx.destination);
+
+  const src = octx.createBufferSource();
+  src.buffer = media.buffer;
+  src.connect(chainEnd);
+  src.start(0, clip.offsetInMedia, clip.duration);
+
+  return await octx.startRendering();
+}
+
+async function exportBufferDirectly(buffer, baseName, fmt = 'mp3') {
+  showProc('Encoding audio…', 50);
+  let ab, ext, mime;
+  if (fmt === 'mp3') { ab = await encodeMp3(buffer); ext = 'mp3'; mime = 'audio/mpeg'; }
+  else              { ab = encodeWAV(buffer);         ext = 'wav'; mime = 'audio/wav';  }
+  hideProc();
+  const fullName = `${sanitizeFilename(baseName)}.${ext}`;
+  downloadBuf(ab, fullName, mime);
+  status(`✓ Exported "${fullName}"`);
+}
+
 function totalDuration() {
   const end = getAudioEnd();
   return Math.max(6, end + 2);
@@ -1126,6 +1612,7 @@ function snapshot() {
   S.history.push(blob);
   if (S.history.length > 60) S.history.shift();
   S.historyIdx = S.history.length - 1;
+  scheduleAutoSave();
 }
 function undo() {
   if (S.historyIdx <= 0) return;
@@ -1141,23 +1628,55 @@ function applySnapshot(blob) {
   S.tracks = JSON.parse(blob);
   S.selectedClipId = null;
   renderTrackHeaders(); renderTimeline(); renderVowelPanel();
+  scheduleAutoSave();
   status('Restored');
 }
 
 // ─────────────────────────────────────────────────────────────────
 // AUDIO ENGINE
 // ─────────────────────────────────────────────────────────────────
-let actx = null, masterGain = null, eqFilters = [];
+let actx = null, masterGain = null, masterAnalyser = null, masterAnalyserData = null, peakAnimId = null, eqFilters = [];
 
 function ensureCtx() {
   if (!actx) {
     actx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = actx.createGain();
     masterGain.gain.value = S.masterVolume;
-    masterGain.connect(actx.destination);
+    masterAnalyser = actx.createAnalyser();
+    masterAnalyser.fftSize = 256;
+    masterAnalyserData = new Float32Array(masterAnalyser.fftSize);
+    masterGain.connect(masterAnalyser);
+    masterAnalyser.connect(actx.destination);
     buildEQChain();
+    startPeakMonitor();
   }
   if (actx.state === 'suspended') actx.resume();
+}
+
+function startPeakMonitor() {
+  if (peakAnimId) return;
+  const peakDot = document.getElementById('master-peak-dot');
+  function checkPeak() {
+    if (masterAnalyser && masterAnalyserData && S.isPlaying) {
+      masterAnalyser.getFloatTimeDomainData(masterAnalyserData);
+      let maxAmp = 0;
+      for (let i = 0; i < masterAnalyserData.length; i++) {
+        const a = Math.abs(masterAnalyserData[i]);
+        if (a > maxAmp) maxAmp = a;
+      }
+      if (peakDot) {
+        if (maxAmp >= 0.98) {
+          peakDot.classList.add('clipped');
+        } else {
+          peakDot.classList.remove('clipped');
+        }
+      }
+    } else if (peakDot) {
+      peakDot.classList.remove('clipped');
+    }
+    peakAnimId = requestAnimationFrame(checkPeak);
+  }
+  peakAnimId = requestAnimationFrame(checkPeak);
 }
 
 function buildEQChain() {
@@ -1933,11 +2452,13 @@ function renderMediaLibrary() {
       </div>
       <div class="mi-actions">
         <button class="mi-btn" data-play="${m.id}" title="Audition">▶</button>
+        <button class="mi-btn" data-export="${m.id}" title="Direct export/download">⬇</button>
         <button class="mi-btn icon-add" data-add="${m.id}" title="Add to timeline">+</button>
+        <button class="mi-btn" data-del="${m.id}" title="Remove from project">✕</button>
       </div>
     `;
     div.addEventListener('click', e => {
-      if (e.target.closest('[data-play],[data-add]')) return;
+      if (e.target.closest('[data-play],[data-export],[data-add],[data-del]')) return;
       S.selectedMediaId = m.id; renderMediaLibrary();
     });
     list.appendChild(div);
@@ -1947,8 +2468,27 @@ function renderMediaLibrary() {
     const m = getMedia(+e.target.dataset.play);
     if (m?.buffer) auditionBuffer(m.buffer, 0, m.duration);
   }));
+  list.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', e => {
+    const m = getMedia(+e.target.dataset.export);
+    if (m) openExportModal(m.id);
+  }));
   list.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', e => {
     addMediaToTimeline(+e.target.dataset.add);
+  }));
+  list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', e => {
+    const id = +e.target.dataset.del;
+    const m = getMedia(id);
+    if (!m) return;
+    if (confirm(`Remove "${m.name}" from project?`)) {
+      snapshot();
+      S.mediaFiles = S.mediaFiles.filter(item => item.id !== id);
+      S.tracks.forEach(t => { t.clips = t.clips.filter(c => c.mediaId !== id); });
+      if (S.selectedMediaId === id) S.selectedMediaId = null;
+      renderMediaLibrary();
+      renderTimeline();
+      scheduleAutoSave();
+      status(`Removed "${m.name}"`);
+    }
   }));
 }
 
@@ -3145,13 +3685,29 @@ function loadScript(src) {
 
 let _expBuf = null;
 async function renderAndExport(fmt) {
-  const end = getAudioEnd();
-  if (end <= 0) {
-    alert('No audio clips on the timeline to export.');
-    return null;
+  const scopeRadio = document.querySelector('input[name="exp-scope"]:checked');
+  const scope = scopeRadio ? scopeRadio.value : 'timeline';
+
+  let rendered = null;
+  if (scope === 'clip') {
+    const sel = getSelClip();
+    if (!sel) {
+      alert('Please select a clip on the timeline or choose "Entire Timeline Mix".');
+      return null;
+    }
+    showProc(`Rendering clip "${getMedia(sel.clip.mediaId)?.name || 'clip'}"…`, 25);
+    rendered = await renderClipAudio(sel.clip, false);
+  } else {
+    const start = getAudioStart();
+    const end   = getAudioEnd();
+    if (end <= 0 || !isFinite(start)) {
+      alert('No audio clips on the timeline to export.');
+      return null;
+    }
+    showProc('Rendering timeline mix…', 20);
+    rendered = await renderMix(start, end);
   }
-  showProc('Rendering mix…', 20);
-  const rendered = await renderMix(0, end);
+
   if (!rendered) { hideProc(); return null; }
   showProc('Encoding…', 75);
   let ab, ext, mime;
@@ -3505,6 +4061,18 @@ document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(
 document.getElementById('zoom-slider').addEventListener('input',  e  => setZoom(+e.target.value));
 document.getElementById('btn-add-track').addEventListener('click', () => { addTrack(); snapshot(); });
 document.getElementById('btn-split').addEventListener('click',    splitAtPlayhead);
+document.getElementById('btn-duplicate')?.addEventListener('click', duplicateSelectedClip);
+document.getElementById('btn-export-clip-quick')?.addEventListener('click', () => openExportModal());
+document.getElementById('btn-reset-project')?.addEventListener('click', clearProjectSession);
+document.getElementById('btn-help-shortcuts')?.addEventListener('click', () => {
+  document.getElementById('shortcuts-modal')?.classList.toggle('hidden');
+});
+document.getElementById('btn-close-shortcuts')?.addEventListener('click', () => {
+  document.getElementById('shortcuts-modal')?.classList.add('hidden');
+});
+document.getElementById('btn-shortcuts-ok')?.addEventListener('click', () => {
+  document.getElementById('shortcuts-modal')?.classList.add('hidden');
+});
 document.getElementById('btn-del-clip').addEventListener('click', () => {
   if (!S.selectedClipId) return;
   snapshot();
@@ -3515,23 +4083,60 @@ document.getElementById('btn-del-clip').addEventListener('click', () => {
 document.getElementById('btn-undo').addEventListener('click', undo);
 document.getElementById('btn-redo').addEventListener('click', redo);
 
+// Direct export from Inspector cards
+document.getElementById('btn-export-slow-direct')?.addEventListener('click', async () => {
+  const sel = getSelClip();
+  if (!sel) return alert('Select a clip on the timeline first');
+  const speed = S.slowSpeed || 0.60;
+  const scope = S.slowScope || 'whole';
+  const profile = S.slowProfile || 'psola';
+  const media = getMedia(sel.clip.mediaId);
+  showProc(`Rendering ${speed.toFixed(2)}× slowed audio…`, 30);
+  await pause(20);
+  const nb = renderSlowdownBuffer(speed, scope, profile);
+  hideProc();
+  if (!nb) return;
+  const name = `${media ? media.name : 'clip'}_${speed.toFixed(2)}x_slowed`;
+  await exportBufferDirectly(nb, name, 'mp3');
+});
+
+document.getElementById('btn-export-vowel-direct')?.addEventListener('click', async () => {
+  const sel = getSelClip();
+  if (!sel) return alert('Select a clip on the timeline first');
+  if (S.vowelStart === null || S.vowelEnd === null) return alert('Detect or set a vowel region first');
+  const { clip } = sel;
+  const media = getMedia(clip.mediaId);
+  if (!media?.buffer) return;
+
+  const ratio = S.stretchRatio;
+  const sr = media.buffer.sampleRate;
+  const nc = media.buffer.numberOfChannels;
+  const clipOff = Math.floor(clip.offsetInMedia * sr);
+  const ch0 = media.buffer.getChannelData(0);
+  const rawStart = clipOff + Math.floor(S.vowelStart * sr);
+  const rawEnd = clipOff + Math.floor(S.vowelEnd * sr);
+  const clipEnd = clipOff + Math.floor(clip.duration * sr);
+  const vStart = findNearestZeroCrossing(ch0, rawStart);
+  const vEnd = findNearestZeroCrossing(ch0, rawEnd);
+  const vowelLen = Math.max(128, vEnd - vStart);
+
+  showProc(`Prolonging vowel ${ratio}×…`, 30);
+  await pause(20);
+  const vowelBuffer = actx.createBuffer(nc, vowelLen, sr);
+  for (let ch = 0; ch < nc; ch++) {
+    vowelBuffer.getChannelData(ch).set(media.buffer.getChannelData(ch).subarray(vStart, vEnd));
+  }
+  const stretchedVowel = sustainVowelCore(actx, vowelBuffer, ratio);
+  const newBuf = spliceSeamlessBuffer(actx, media.buffer, clipOff, vStart, vEnd, clipEnd, stretchedVowel);
+  hideProc();
+  const name = `${media.name}_${ratio}x_vowel`;
+  await exportBufferDirectly(newBuf, name, 'mp3');
+});
+
 // Panel toggles
-document.getElementById('btn-toggle-video').addEventListener('click', () => {
-  S.showVideo = !S.showVideo;
-  document.getElementById('video-section').classList.toggle('collapsed', !S.showVideo);
-  document.getElementById('btn-toggle-video').classList.toggle('active', S.showVideo);
-});
-document.getElementById('video-close').addEventListener('click', () => {
-  S.showVideo = false;
-  document.getElementById('video-section').classList.add('collapsed');
-  document.getElementById('btn-toggle-video').classList.remove('active');
-});
-document.getElementById('btn-toggle-eq').addEventListener('click', () => {
-  S.showEQ = !S.showEQ;
-  document.getElementById('eq-section').classList.toggle('collapsed', !S.showEQ);
-  document.getElementById('btn-toggle-eq').classList.toggle('active', S.showEQ);
-  if (S.showEQ) setTimeout(renderEQ, 50);
-});
+document.getElementById('btn-toggle-video').addEventListener('click', () => setVideoVisible(!S.showVideo));
+document.getElementById('video-close').addEventListener('click', () => setVideoVisible(false));
+document.getElementById('btn-toggle-eq').addEventListener('click', () => setEQVisible(!S.showEQ));
 
 // EQ
 document.getElementById('eq-preset').addEventListener('change', e => applyEQPreset(e.target.value));
@@ -3810,25 +4415,53 @@ function getRandomIdStr() {
   return Math.random().toString(16).substring(2, 6);
 }
 
-function openExportModal() {
-  const base = getSmartExportBaseName();
+function openExportModal(targetMediaId = null) {
+  const sel = getSelClip();
+  const clipRadio = document.querySelector('input[name="exp-scope"][value="clip"]');
+  const tlRadio = document.querySelector('input[name="exp-scope"][value="timeline"]');
+  const clipNameEl = document.getElementById('exp-clip-name');
+  const srcLabel = document.getElementById('exp-name-source');
+
+  let activeMediaName = '';
+  if (targetMediaId) {
+    const m = getMedia(targetMediaId);
+    if (m) activeMediaName = m.name;
+  } else if (sel) {
+    const m = getMedia(sel.clip.mediaId);
+    if (m) activeMediaName = m.name;
+  }
+
+  if (activeMediaName) {
+    if (clipRadio) {
+      clipRadio.disabled = false;
+      clipRadio.checked = true;
+    }
+    if (clipNameEl) clipNameEl.textContent = `"${activeMediaName}"`;
+    if (srcLabel) srcLabel.textContent = `Clip: "${activeMediaName}"`;
+  } else {
+    if (clipRadio) {
+      clipRadio.disabled = true;
+      clipRadio.checked = false;
+    }
+    if (tlRadio) tlRadio.checked = true;
+    if (clipNameEl) clipNameEl.textContent = '(Select a clip to export only that clip)';
+    if (srcLabel) srcLabel.textContent = 'Timeline mix';
+  }
+
+  const base = activeMediaName ? sanitizeFilename(activeMediaName) : getSmartExportBaseName();
   const uniqueName = getNextUniqueFilename(base);
   const input = document.getElementById('exp-filename');
-  input.value = uniqueName;
-
-  const srcLabel = document.getElementById('exp-name-source');
-  if (srcLabel) {
-    const rawName = getActiveClipMediaName();
-    srcLabel.textContent = rawName ? `Edited: "${rawName}"` : 'Timeline mix';
+  if (input) {
+    input.value = uniqueName;
+    input.focus();
+    input.select();
   }
 
   document.getElementById('export-modal').classList.remove('hidden');
-  input.focus();
-  input.select();
 }
 
 // Export modal
-document.getElementById('btn-export').addEventListener('click', openExportModal);
+document.getElementById('btn-export').addEventListener('click', () => openExportModal());
 document.getElementById('btn-exp-cancel').addEventListener('click', () =>
   document.getElementById('export-modal').classList.add('hidden'));
 
@@ -3905,21 +4538,50 @@ document.addEventListener('keydown', e => {
       S.isPlaying ? stopPlayback(false) : startPlayback();
       break;
     case 'KeyS':
-      if (!e.ctrlKey) { e.preventDefault(); splitAtPlayhead(); }
+    case 'KeyC':
+      if (!e.ctrlKey && !e.metaKey) { e.preventDefault(); splitAtPlayhead(); }
+      break;
+    case 'KeyD':
+      if (e.ctrlKey || e.metaKey) { e.preventDefault(); duplicateSelectedClip(); }
       break;
     case 'Delete': case 'Backspace':
       if (S.selectedClipId) {
         snapshot();
         S.tracks.forEach(t => { t.clips = t.clips.filter(c => c.id !== S.selectedClipId); });
         S.selectedClipId = null;
-        renderTimeline(); renderVowelPanel(); updateStatusBar();
+        renderTimeline(); renderVowelPanel(); updateStatusBar(); status('Clip deleted');
       }
       break;
     case 'KeyZ':
-      if (e.ctrlKey) { e.preventDefault(); undo(); }
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      }
       break;
     case 'KeyY':
-      if (e.ctrlKey) { e.preventDefault(); redo(); }
+      if (e.ctrlKey || e.metaKey) { e.preventDefault(); redo(); }
+      break;
+    case 'KeyE':
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+        e.preventDefault(); openExportModal();
+      } else if (!e.ctrlKey && !e.metaKey) {
+        setEQVisible(!S.showEQ);
+      }
+      break;
+    case 'KeyV':
+      if (!e.ctrlKey && !e.metaKey) {
+        setVideoVisible(!S.showVideo);
+      }
+      break;
+    case 'Slash':
+      if (e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('shortcuts-modal')?.classList.toggle('hidden');
+      }
+      break;
+    case 'Escape':
+      document.getElementById('export-modal')?.classList.add('hidden');
+      document.getElementById('shortcuts-modal')?.classList.add('hidden');
       break;
     case 'Equal': case 'NumpadAdd':
       e.preventDefault(); setZoom(S.zoom + 20); break;
@@ -3933,21 +4595,6 @@ document.addEventListener('keydown', e => {
       updateTimecode(); renderTimeline(); break;
     case 'Home':
       stopPlayback(false); S.playheadTime = 0; updateTimecode(); renderTimeline(); break;
-    case 'KeyV':
-      if (!e.ctrlKey) {
-        S.showVideo = !S.showVideo;
-        document.getElementById('video-section').classList.toggle('collapsed', !S.showVideo);
-        document.getElementById('btn-toggle-video').classList.toggle('active', S.showVideo);
-      }
-      break;
-    case 'KeyE':
-      if (!e.ctrlKey) {
-        S.showEQ = !S.showEQ;
-        document.getElementById('eq-section').classList.toggle('collapsed', !S.showEQ);
-        document.getElementById('btn-toggle-eq').classList.toggle('active', S.showEQ);
-        if (S.showEQ) setTimeout(renderEQ, 50);
-      }
-      break;
   }
 });
 
@@ -3965,8 +4612,29 @@ ro.observe(document.getElementById('eq-section'));
 // ─────────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────────
-function init() {
+async function init() {
   setTheme(S.theme);
+
+  // Strictly ensure Video and EQ panels are completely hidden by default
+  setVideoVisible(false);
+  setEQVisible(false);
+  const eqOnBox = document.getElementById('eq-on');
+  if (eqOnBox) eqOnBox.checked = false;
+  S.eqEnabled = false;
+  updateEQFilters();
+  buildEQBandSliders();
+
+  // Restore saved session from IndexedDB if present
+  const restored = await restoreSessionFromStorage();
+  if (restored) {
+    status(`✓ Session restored (${S.tracks.length} tracks, ${S.mediaFiles.length} media files)`);
+  } else {
+    addTrack('Track 1');
+    addTrack('Track 2');
+    snapshot();
+    status('Ready — drag audio/video files here, or click "+ Import"');
+  }
+
   setInspectorTab(S.inspTab || 'slow');
   setSlowScope(S.slowScope || 'whole');
   setSlowSpeed(S.slowSpeed || 0.60);
@@ -3977,28 +4645,12 @@ function init() {
     descEl.textContent = SLOW_PROFILE_DESCS[S.slowProfile || 'psola'];
   }
 
-  addTrack('Track 1');
-  addTrack('Track 2');
-  snapshot();
-  // Ensure Video and EQ panels are closed/off by default
-  document.getElementById('video-section')?.classList.add('collapsed');
-  document.getElementById('btn-toggle-video')?.classList.remove('active');
-  document.getElementById('eq-section')?.classList.add('collapsed');
-  document.getElementById('btn-toggle-eq')?.classList.remove('active');
-  const eqOnBox = document.getElementById('eq-on');
-  if (eqOnBox) eqOnBox.checked = false;
-  S.eqEnabled = false;
-  S.showVideo = false;
-  S.showEQ = false;
-  updateEQFilters();
-
-  buildEQBandSliders();
   renderMediaLibrary();
+  renderTrackHeaders();
   renderTimeline();
   renderVowelPanel();
   updateTimecode();
   updateStatusBar();
-  status('Ready — drag audio/video files here, or click "+ Import"');
 }
 
 init();
