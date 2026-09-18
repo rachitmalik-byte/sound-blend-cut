@@ -2465,6 +2465,107 @@ function stretchWithProfile(ctx, buffer, speed, profile) {
   return tdpsolaStretch(ctx, buffer, speed);
 }
 
+// ─────────────────────────────────────────────────────────────────
+// ZERO-CROSSING & SEAMLESS REGIONAL SPLICE ENGINE
+// ─────────────────────────────────────────────────────────────────
+// Eliminates boundary clicks, DC pops, cuts, and overlap stutters
+// when stretching an isolated region within a speech clip.
+// ─────────────────────────────────────────────────────────────────
+function findNearestZeroCrossing(channelData, targetSample, searchWindow = 220) {
+  const n = channelData.length;
+  const start = Math.max(1, targetSample - searchWindow);
+  const end = Math.min(n - 1, targetSample + searchWindow);
+
+  let bestIdx = targetSample;
+  let minAmp = 1e9;
+
+  for (let i = start; i <= end; i++) {
+    const sPrev = channelData[i - 1];
+    const sCur = channelData[i];
+    if (sPrev <= 0 && sCur >= 0) {
+      const amp = Math.abs(sCur);
+      if (amp < minAmp) {
+        minAmp = amp;
+        bestIdx = i;
+      }
+    }
+  }
+
+  if (minAmp > 0.04) {
+    for (let i = start; i <= end; i++) {
+      const amp = Math.abs(channelData[i]);
+      if (amp < minAmp) {
+        minAmp = amp;
+        bestIdx = i;
+      }
+    }
+  }
+
+  return bestIdx;
+}
+
+function spliceSeamlessBuffer(ctx, mediaBuffer, clipOff, sStart, sEnd, clipEnd, stretchedBuffer) {
+  const nc = mediaBuffer.numberOfChannels;
+  const sr = mediaBuffer.sampleRate;
+  const preLen = Math.max(0, sStart - clipOff);
+  const strLen = stretchedBuffer.length;
+  const postLen = Math.max(0, clipEnd - sEnd);
+
+  // Smooth 16ms equal-power crossfade at each boundary
+  const maxFade = Math.floor(sr * 0.016);
+  const xfade1 = Math.min(maxFade, Math.floor(preLen * 0.25), Math.floor(strLen * 0.25));
+  const xfade2 = Math.min(maxFade, Math.floor(strLen * 0.25), Math.floor(postLen * 0.25));
+
+  const totalLen = (preLen - xfade1) + (strLen - xfade2) + postLen;
+  const outBuffer = ctx.createBuffer(nc, totalLen, sr);
+
+  for (let ch = 0; ch < nc; ch++) {
+    const src = mediaBuffer.getChannelData(ch);
+    const str = stretchedBuffer.getChannelData(ch);
+    const dst = outBuffer.getChannelData(ch);
+    let dstPos = 0;
+
+    const prePureLen = preLen - xfade1;
+    for (let i = 0; i < prePureLen; i++) {
+      dst[dstPos++] = src[clipOff + i];
+    }
+
+    if (xfade1 > 0) {
+      for (let i = 0; i < xfade1; i++) {
+        const t = i / xfade1;
+        const wOut = Math.cos(t * Math.PI * 0.5);
+        const wIn  = Math.sin(t * Math.PI * 0.5);
+        const sPre = src[clipOff + prePureLen + i];
+        const sStr = str[i];
+        dst[dstPos++] = sPre * wOut + sStr * wIn;
+      }
+    }
+
+    const strPureLen = Math.max(0, (strLen - xfade2) - xfade1);
+    for (let i = 0; i < strPureLen; i++) {
+      dst[dstPos++] = str[xfade1 + i];
+    }
+
+    if (xfade2 > 0) {
+      for (let i = 0; i < xfade2; i++) {
+        const t = i / xfade2;
+        const wOut = Math.cos(t * Math.PI * 0.5);
+        const wIn  = Math.sin(t * Math.PI * 0.5);
+        const sStr = str[strLen - xfade2 + i];
+        const sPost = src[sEnd + i];
+        dst[dstPos++] = sStr * wOut + sPost * wIn;
+      }
+    }
+
+    const postPureLen = postLen - xfade2;
+    for (let i = 0; i < postPureLen; i++) {
+      dst[dstPos++] = src[sEnd + xfade2 + i];
+    }
+  }
+
+  return outBuffer;
+}
+
 function renderSlowdownBuffer(speed, scope, profile) {
   const sel = getSelClip();
   if (!sel) return null;
@@ -2484,7 +2585,7 @@ function renderSlowdownBuffer(speed, scope, profile) {
     }
     return stretchWithProfile(actx, clipSlice, speed, profile);
   } else {
-    // Region mode
+    // Region mode with zero-crossing snapping and seamless splicing
     let vStart = S.vowelStart !== null ? S.vowelStart : 0;
     let vEnd   = S.vowelEnd !== null ? S.vowelEnd : clip.duration;
     if (vStart > vEnd) { const tmp = vStart; vStart = vEnd; vEnd = tmp; }
@@ -2493,13 +2594,15 @@ function renderSlowdownBuffer(speed, scope, profile) {
       return null;
     }
 
-    const sStart = clipOff + Math.floor(vStart * sr);
-    const sEnd   = clipOff + Math.floor(vEnd * sr);
-    const clipEnd = clipOff + clipLen;
+    const ch0 = media.buffer.getChannelData(0);
+    const rawStart = clipOff + Math.floor(vStart * sr);
+    const rawEnd   = clipOff + Math.floor(vEnd * sr);
+    const clipEnd  = clipOff + clipLen;
 
-    const preLen = Math.max(0, sStart - clipOff);
-    const regLen = Math.max(0, sEnd - sStart);
-    const postLen = Math.max(0, clipEnd - sEnd);
+    // Snap to nearest zero-crossing to prevent DC transient click
+    const sStart = findNearestZeroCrossing(ch0, rawStart);
+    const sEnd   = findNearestZeroCrossing(ch0, rawEnd);
+    const regLen = Math.max(128, sEnd - sStart);
 
     const regSlice = actx.createBuffer(nc, regLen, sr);
     for (let ch = 0; ch < nc; ch++) {
@@ -2507,42 +2610,7 @@ function renderSlowdownBuffer(speed, scope, profile) {
     }
 
     const stretchedReg = stretchWithProfile(actx, regSlice, speed, profile);
-    const strLen = stretchedReg.length;
-    const totalLen = preLen + strLen + postLen;
-
-    const outBuf = actx.createBuffer(nc, totalLen, sr);
-    const xfade = Math.min(Math.floor(sr * 0.015), Math.floor(preLen / 2), Math.floor(strLen / 4), Math.floor(postLen / 2));
-
-    for (let ch = 0; ch < nc; ch++) {
-      const src = media.buffer.getChannelData(ch);
-      const str = stretchedReg.getChannelData(ch);
-      const dst = outBuf.getChannelData(ch);
-
-      // Pre-region
-      for (let i = 0; i < preLen; i++) dst[i] = src[clipOff + i];
-
-      // Region with smooth crossfade
-      for (let i = 0; i < strLen; i++) {
-        if (i < xfade && preLen > 0) {
-          const t = i / xfade;
-          dst[preLen + i] = dst[preLen + i] * (1 - t) + str[i] * t;
-        } else {
-          dst[preLen + i] = str[i];
-        }
-      }
-
-      // Post-region with smooth crossfade
-      for (let i = 0; i < postLen; i++) {
-        const dstIdx = preLen + strLen + i;
-        if (i < xfade && strLen > 0) {
-          const t = i / xfade;
-          dst[dstIdx] = str[strLen - xfade + i] * (1 - t) + src[sEnd + i] * t;
-        } else {
-          dst[dstIdx] = src[sEnd + i];
-        }
-      }
-    }
-    return outBuf;
+    return spliceSeamlessBuffer(actx, media.buffer, clipOff, sStart, sEnd, clipEnd, stretchedReg);
   }
 }
 
@@ -2633,14 +2701,15 @@ async function applyVowelStretch() {
   const sr    = media.buffer.sampleRate;
   const nc    = media.buffer.numberOfChannels;
 
-  const clipOff  = Math.floor(clip.offsetInMedia * sr);
-  const vStart   = clipOff + Math.floor(S.vowelStart * sr);
-  const vEnd     = clipOff + Math.floor(S.vowelEnd   * sr);
+  const ch0 = media.buffer.getChannelData(0);
+  const rawStart = clipOff + Math.floor(S.vowelStart * sr);
+  const rawEnd   = clipOff + Math.floor(S.vowelEnd   * sr);
   const clipEnd  = clipOff + Math.floor(clip.duration * sr);
 
-  const preLen     = Math.max(0, vStart - clipOff);
-  const vowelLen   = Math.max(0, vEnd   - vStart);
-  const postLen    = Math.max(0, clipEnd - vEnd);
+  // Snap to nearest zero-crossing to eliminate boundary clicks and DC transient pops
+  const vStart = findNearestZeroCrossing(ch0, rawStart);
+  const vEnd   = findNearestZeroCrossing(ch0, rawEnd);
+  const vowelLen = Math.max(128, vEnd - vStart);
 
   showProc(`Applying natural ${ratio}× vowel stretch…`, 15);
   await pause(30);
@@ -2653,41 +2722,7 @@ async function applyVowelStretch() {
 
   // Prolong vowel using TD-PSOLA: preserves 100% of speaker pitch, vocal formants, and timbre
   const stretchedVowel = tdpsolaStretch(actx, vowelBuffer, 1 / ratio);
-  const stretchLen = stretchedVowel.length;
-  const newLen = preLen + stretchLen + postLen;
-
-  const newBuf = actx.createBuffer(nc, newLen, sr);
-  const xfade = Math.min(Math.floor(sr * 0.015), Math.floor(preLen / 2), Math.floor(stretchLen / 4), Math.floor(postLen / 2));
-
-  for (let ch = 0; ch < nc; ch++) {
-    const src = media.buffer.getChannelData(ch);
-    const strCh = stretchedVowel.getChannelData(ch);
-    const dst = newBuf.getChannelData(ch);
-
-    // 1. Pre-vowel: 100% untouched consonant onset
-    for (let i = 0; i < preLen; i++) dst[i] = src[clipOff + i];
-
-    // 2. Vowel with micro-crossfade at onset boundary
-    for (let i = 0; i < stretchLen; i++) {
-      if (i < xfade && preLen > 0) {
-        const t = i / xfade;
-        dst[preLen + i] = dst[preLen + i] * (1 - t) + strCh[i] * t;
-      } else {
-        dst[preLen + i] = strCh[i];
-      }
-    }
-
-    // 3. Post-vowel: 100% untouched consonant coda with micro-crossfade
-    for (let i = 0; i < postLen; i++) {
-      const dstIdx = preLen + stretchLen + i;
-      if (i < xfade && stretchLen > 0) {
-        const t = i / xfade;
-        dst[dstIdx] = strCh[stretchLen - xfade + i] * (1 - t) + src[vEnd + i] * t;
-      } else {
-        dst[dstIdx] = src[vEnd + i];
-      }
-    }
-  }
+  const newBuf = spliceSeamlessBuffer(actx, media.buffer, clipOff, vStart, vEnd, clipEnd, stretchedVowel);
 
   showProc(`Computing waveform…`, 85);
   const peaks = computePeaks(newBuf, PEAK_RES);
@@ -2729,13 +2764,15 @@ async function previewStretch() {
   const ratio = S.stretchRatio;
   const sr = media.buffer.sampleRate;
   const nc = media.buffer.numberOfChannels;
-  const clipOff  = Math.floor(clip.offsetInMedia * sr);
-  const vStart   = clipOff + Math.floor(S.vowelStart * sr);
-  const vEnd     = clipOff + Math.floor(S.vowelEnd   * sr);
+  const ch0 = media.buffer.getChannelData(0);
+  const rawStart = clipOff + Math.floor(S.vowelStart * sr);
+  const rawEnd   = clipOff + Math.floor(S.vowelEnd   * sr);
   const clipEnd  = clipOff + Math.floor(clip.duration * sr);
-  const preLen   = Math.max(0, vStart - clipOff);
-  const vowelLen = Math.max(0, vEnd - vStart);
-  const postLen  = Math.max(0, clipEnd - vEnd);
+
+  // Snap to nearest zero-crossing to eliminate boundary clicks and DC transient pops
+  const vStart = findNearestZeroCrossing(ch0, rawStart);
+  const vEnd   = findNearestZeroCrossing(ch0, rawEnd);
+  const vowelLen = Math.max(128, vEnd - vStart);
 
   showProc('Rendering natural vowel preview…', 30);
   await pause(20);
@@ -2747,38 +2784,7 @@ async function previewStretch() {
 
   // Prolong vowel using TD-PSOLA: preserves 100% of speaker pitch, vocal formants, and timbre
   const stretchedVowel = tdpsolaStretch(actx, vowelBuffer, 1 / ratio);
-  const strLen = stretchedVowel.length;
-  const newLen = preLen + strLen + postLen;
-
-  const nb = actx.createBuffer(nc, newLen, sr);
-  const xfade = Math.min(Math.floor(sr * 0.015), Math.floor(preLen / 2), Math.floor(strLen / 4), Math.floor(postLen / 2));
-
-  for (let ch = 0; ch < nc; ch++) {
-    const src = media.buffer.getChannelData(ch);
-    const strCh = stretchedVowel.getChannelData(ch);
-    const dst = nb.getChannelData(ch);
-
-    for (let i = 0; i < preLen; i++) dst[i] = src[clipOff + i];
-
-    for (let i = 0; i < strLen; i++) {
-      if (i < xfade && preLen > 0) {
-        const t = i / xfade;
-        dst[preLen + i] = dst[preLen + i] * (1 - t) + strCh[i] * t;
-      } else {
-        dst[preLen + i] = strCh[i];
-      }
-    }
-
-    for (let i = 0; i < postLen; i++) {
-      const dstIdx = preLen + strLen + i;
-      if (i < xfade && strLen > 0) {
-        const t = i / xfade;
-        dst[dstIdx] = strCh[strLen - xfade + i] * (1 - t) + src[vEnd + i] * t;
-      } else {
-        dst[dstIdx] = src[vEnd + i];
-      }
-    }
-  }
+  const nb = spliceSeamlessBuffer(actx, media.buffer, clipOff, vStart, vEnd, clipEnd, stretchedVowel);
   hideProc();
 
   ensureCtx();
