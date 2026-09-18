@@ -68,6 +68,9 @@ npx serve .
 ```
 Then navigate to `http://localhost:8080`.
 
+### Option C: Deploy to Vercel
+Import this repository directly into [Vercel](https://vercel.com). The repository includes pre-configured `vercel.json` and `package.json` for instant zero-configuration deployment on Vercel's global Edge CDN.
+
 ---
 
 ## ⌨️ Keyboard Shortcuts

@@ -1,0 +1,20 @@
+{
+  "name": "sound-blend-cut",
+  "version": "1.0.0",
+  "description": "Local offline audio workstation for American English phonics blending and natural vowel prolongation",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'Vercel static build complete'",
+    "start": "python -m http.server 8080"
+  },
+  "keywords": [
+    "audio-workstation",
+    "phonics",
+    "td-psola",
+    "speech-synthesis",
+    "sound-blending",
+    "vowel-sustain"
+  ],
+  "author": "Rachit Malik",
+  "license": "MIT"
+}

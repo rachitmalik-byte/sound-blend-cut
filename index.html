@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IXR Audio Workstation</title>
+<title>Sound Blend Cut — Audio Workstation</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="alternate icon" type="image/x-icon" href="favicon.ico">
 <script src="soundtouch.js"></script>
 <script src="lame.min.js"></script>
 <style>
@@ -634,10 +636,10 @@ input[type=text], input[type=number] {
       <span id="master-vol-label" class="vol-label">100%</span>
     </div>
     <div class="sep-v"></div>
-    <button class="pill-toggle active" id="btn-toggle-video" title="Toggle Video Panel [V]">
+    <button class="pill-toggle" id="btn-toggle-video" title="Toggle Video Panel [V]">
       <span class="dot-indicator"></span> Video
     </button>
-    <button class="pill-toggle active" id="btn-toggle-eq" title="Toggle 5-Band EQ [E]">
+    <button class="pill-toggle" id="btn-toggle-eq" title="Toggle 5-Band EQ [E]">
       <span class="dot-indicator"></span> EQ
     </button>
     <div class="sep-v"></div>
@@ -671,7 +673,7 @@ input[type=text], input[type=number] {
   <div id="center-panel">
 
     <!-- Video Preview Section -->
-    <div id="video-section" style="height:175px">
+    <div id="video-section" class="collapsed">
       <video id="video-el" controls></video>
       <div id="video-placeholder">No video file loaded</div>
       <button id="video-close" title="Hide video preview">✕</button>
@@ -718,7 +720,7 @@ input[type=text], input[type=number] {
     </div>
 
     <!-- 5-Band EQ Section -->
-    <div id="eq-section">
+    <div id="eq-section" class="collapsed">
       <canvas id="eq-canvas"></canvas>
       <div id="eq-sidebar">
         <div class="eq-title">5-Band Parametric EQ</div>
@@ -1026,8 +1028,8 @@ const S = {
   historyIdx: -1,
 
   videoLoaded: false,
-  showVideo:   true,
-  showEQ:      true,
+  showVideo:   false,
+  showEQ:      false,
 
   // Inspector Tab & Slowdown parameters
   inspTab:     'slow', // 'slow' or 'vowel'
@@ -3802,8 +3804,13 @@ function init() {
   addTrack('Track 1');
   addTrack('Track 2');
   snapshot();
+  // Ensure Video and EQ panels are closed/off by default
+  document.getElementById('video-section')?.classList.add('collapsed');
+  document.getElementById('btn-toggle-video')?.classList.remove('active');
+  document.getElementById('eq-section')?.classList.add('collapsed');
+  document.getElementById('btn-toggle-eq')?.classList.remove('active');
+
   buildEQBandSliders();
-  renderEQ();
   renderMediaLibrary();
   renderTimeline();
   renderVowelPanel();
