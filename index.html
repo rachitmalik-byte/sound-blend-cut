@@ -734,7 +734,7 @@ input[type=text], input[type=number] {
           </select>
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-          <input type="checkbox" id="eq-on" checked>
+          <input type="checkbox" id="eq-on">
           <label for="eq-on" style="font-size:10.5px;color:var(--text-dim);cursor:pointer">EQ Filter Active</label>
         </div>
         <div id="eq-sliders" style="display:flex;flex-direction:column;gap:2px;overflow-y:auto"></div>
@@ -1015,7 +1015,7 @@ const S = {
   vowelEnd:   null,
   stretchRatio: 2.0,
 
-  eqEnabled: true,
+  eqEnabled: false,
   eqBands: [
     { freq: 80,    gain: 0, type: 'lowshelf',  Q: 0.7 },
     { freq: 250,   gain: 0, type: 'peaking',   Q: 1.0 },
@@ -3835,6 +3835,12 @@ function init() {
   document.getElementById('btn-toggle-video')?.classList.remove('active');
   document.getElementById('eq-section')?.classList.add('collapsed');
   document.getElementById('btn-toggle-eq')?.classList.remove('active');
+  const eqOnBox = document.getElementById('eq-on');
+  if (eqOnBox) eqOnBox.checked = false;
+  S.eqEnabled = false;
+  S.showVideo = false;
+  S.showEQ = false;
+  updateEQFilters();
 
   buildEQBandSliders();
   renderMediaLibrary();
