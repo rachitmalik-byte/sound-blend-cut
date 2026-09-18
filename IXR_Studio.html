@@ -2376,6 +2376,19 @@ function findPitchMarks(samples, sampleRate, minF0 = 70, maxF0 = 450) {
     pitchMarks.push(Math.floor(sampleRate / 160));
   }
 
+  // Ensure full coverage from 0 to N-1
+  const firstP = pitchMarks.length > 1 ? Math.max(16, pitchMarks[1] - pitchMarks[0]) : Math.round(sampleRate / 160);
+  while (pitchMarks[0] > firstP * 0.5) {
+    pitchMarks.unshift(Math.max(0, pitchMarks[0] - firstP));
+  }
+  if (pitchMarks[0] > 0) pitchMarks.unshift(0);
+
+  const lastP = pitchMarks.length > 1 ? Math.max(16, pitchMarks[pitchMarks.length - 1] - pitchMarks[pitchMarks.length - 2]) : Math.round(sampleRate / 160);
+  while (pitchMarks[pitchMarks.length - 1] < N - lastP * 0.5) {
+    pitchMarks.push(Math.min(N - 1, pitchMarks[pitchMarks.length - 1] + lastP));
+  }
+  if (pitchMarks[pitchMarks.length - 1] < N - 1) pitchMarks.push(N - 1);
+
   return { pitchMarks };
 }
 
@@ -2395,6 +2408,9 @@ function tdpsolaStretch(ctx, sourceBuffer, tempo) {
     return stretchAudioClean(sourceBuffer, timeScale);
   }
 
+  const firstP = Math.max(16, pitchMarks[1] - pitchMarks[0]);
+  const lastP  = Math.max(16, pitchMarks[pitchMarks.length - 1] - pitchMarks[pitchMarks.length - 2]);
+
   const outBuffer = ctx.createBuffer(nc, outLen, sr);
 
   for (let ch = 0; ch < nc; ch++) {
@@ -2402,19 +2418,25 @@ function tdpsolaStretch(ctx, sourceBuffer, tempo) {
     const dst = outBuffer.getChannelData(ch);
     const norm = new Float32Array(outLen);
 
-    let synthTime = pitchMarks[0];
+    let synthTime = 0;
     let anaIdx = 0;
 
-    while (synthTime < outLen - 1 && anaIdx < pitchMarks.length - 1) {
-      const targetAnaTime = synthTime / timeScale;
+    // Continue synthesis until synthTime covers outLen
+    while (synthTime < outLen) {
+      const targetAnaTime = Math.min(inLen - 1, Math.max(0, synthTime / timeScale));
 
       while (anaIdx < pitchMarks.length - 1 && pitchMarks[anaIdx + 1] <= targetAnaTime) {
         anaIdx++;
       }
+      if (anaIdx < pitchMarks.length - 1) {
+        const d1 = Math.abs(pitchMarks[anaIdx] - targetAnaTime);
+        const d2 = Math.abs(pitchMarks[anaIdx + 1] - targetAnaTime);
+        if (d2 < d1) anaIdx++;
+      }
 
       const curMark = pitchMarks[anaIdx];
-      const prevMark = anaIdx > 0 ? pitchMarks[anaIdx - 1] : Math.max(0, curMark - Math.floor(sr / 160));
-      const nextMark = anaIdx < pitchMarks.length - 1 ? pitchMarks[anaIdx + 1] : Math.min(inLen - 1, curMark + Math.floor(sr / 160));
+      const prevMark = anaIdx > 0 ? pitchMarks[anaIdx - 1] : Math.max(0, curMark - firstP);
+      const nextMark = anaIdx < pitchMarks.length - 1 ? pitchMarks[anaIdx + 1] : Math.min(inLen - 1, curMark + lastP);
 
       const periodLeft = Math.max(16, curMark - prevMark);
       const periodRight = Math.max(16, nextMark - curMark);
@@ -2513,10 +2535,11 @@ function spliceSeamlessBuffer(ctx, mediaBuffer, clipOff, sStart, sEnd, clipEnd, 
   const strLen = stretchedBuffer.length;
   const postLen = Math.max(0, clipEnd - sEnd);
 
-  // Smooth 16ms equal-power crossfade at each boundary
-  const maxFade = Math.floor(sr * 0.016);
-  const xfade1 = Math.min(maxFade, Math.floor(preLen * 0.25), Math.floor(strLen * 0.25));
-  const xfade2 = Math.min(maxFade, Math.floor(strLen * 0.25), Math.floor(postLen * 0.25));
+  // Clean 2.5ms micro-crossfade (~110 samples at 44.1kHz) at zero crossings
+  // Prevents DC transient pops without eating into consonants or creating double-sound overlays
+  const maxFade = Math.floor(sr * 0.0025);
+  const xfade1 = Math.min(maxFade, Math.floor(preLen * 0.20), Math.floor(strLen * 0.20));
+  const xfade2 = Math.min(maxFade, Math.floor(strLen * 0.20), Math.floor(postLen * 0.20));
 
   const totalLen = (preLen - xfade1) + (strLen - xfade2) + postLen;
   const outBuffer = ctx.createBuffer(nc, totalLen, sr);
@@ -2702,6 +2725,7 @@ async function applyVowelStretch() {
   const ratio = S.stretchRatio;
   const sr    = media.buffer.sampleRate;
   const nc    = media.buffer.numberOfChannels;
+  const clipOff = Math.floor(clip.offsetInMedia * sr);
 
   const ch0 = media.buffer.getChannelData(0);
   const rawStart = clipOff + Math.floor(S.vowelStart * sr);
@@ -2766,6 +2790,8 @@ async function previewStretch() {
   const ratio = S.stretchRatio;
   const sr = media.buffer.sampleRate;
   const nc = media.buffer.numberOfChannels;
+  const clipOff = Math.floor(clip.offsetInMedia * sr);
+
   const ch0 = media.buffer.getChannelData(0);
   const rawStart = clipOff + Math.floor(S.vowelStart * sr);
   const rawEnd   = clipOff + Math.floor(S.vowelEnd   * sr);
