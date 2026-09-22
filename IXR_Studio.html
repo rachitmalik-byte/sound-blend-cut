@@ -4014,30 +4014,36 @@ function detectAcousticSoundEnd(buffer, options = {}) {
       cutSample: len,
       cutTimeSec: len / sr,
       removedMs: 0,
-      actualPadMs: 10,
+      actualPadMs: 8,
       peakAmp: 0,
       tailPeak: 0,
       maxDerivative: 0,
+      firstGlitchSample: -1,
+      firstGlitchSec: null,
       issue: 'Clean'
     };
   }
 
   const {
-    thresholdMode = 'auto', // 'auto' or numeric dB like -34
-    paddingMode = 'auto',   // 'auto' or numeric ms like 10
+    thresholdMode = 'auto', // 'auto', 'tight' (-24), 'balanced' (-32), 'soft' (-40), or numeric dB
+    paddingMode = 'auto',   // 'auto' or numeric ms like 8, 10
     snapZero = true
   } = options;
 
   const ch0 = buffer.getChannelData(0);
   const ch1 = nc > 1 ? buffer.getChannelData(1) : null;
 
-  // 1. Overall Peak & Windowed Analysis
+  // 1. Overall Peak Tracking & Peak Location
   let peakAmp = 0;
+  let peakIdx = 0;
   for (let i = 0; i < len; i++) {
     const a0 = Math.abs(ch0[i]);
     const a1 = ch1 ? Math.abs(ch1[i]) : 0;
     const m = a0 > a1 ? a0 : a1;
-    if (m > peakAmp) peakAmp = m;
+    if (m > peakAmp) {
+      peakAmp = m;
+      peakIdx = i;
+    }
   }
 
   if (peakAmp < 0.0005) {
@@ -4051,116 +4057,143 @@ function detectAcousticSoundEnd(buffer, options = {}) {
       peakAmp,
       tailPeak: 0,
       maxDerivative: 0,
+      firstGlitchSample: -1,
+      firstGlitchSec: null,
       issue: 'Silent Audio'
     };
   }
 
-  // Windowed RMS & Zero-Crossing Rate (ZCR)
-  const winSamples = Math.max(16, Math.floor((3.0 / 1000) * sr));
-  const hopSamples = Math.max(8, Math.floor(winSamples / 2));
-  const numWins = Math.floor((len - winSamples) / hopSamples);
+  // Windowed RMS & Zero-Crossing Rate (ZCR) with 2ms frames and 1ms hop
+  const frameSamples = Math.max(16, Math.floor(0.002 * sr));
+  const hopSamples = Math.max(8, Math.floor(0.001 * sr));
+  const numFrames = Math.floor((len - frameSamples) / hopSamples);
 
-  const rmsArr = new Float32Array(numWins);
-  const zcrArr = new Float32Array(numWins);
+  const rmsArr = new Float32Array(numFrames);
+  const zcrArr = new Float32Array(numFrames);
   let minRms = Infinity;
 
-  for (let w = 0; w < numWins; w++) {
-    const start = w * hopSamples;
+  for (let f = 0; f < numFrames; f++) {
+    const start = f * hopSamples;
     let sumSq = 0;
-    let zcr = 0;
-    for (let j = 0; j < winSamples; j++) {
+    let zc = 0;
+    for (let j = 0; j < frameSamples; j++) {
       const idx = start + j;
       const v0 = ch0[idx];
       const v1 = ch1 ? ch1[idx] : 0;
       const v = Math.abs(v0) > Math.abs(v1) ? v0 : v1;
       sumSq += v * v;
       if (j > 0 && ((ch0[idx - 1] >= 0 && ch0[idx] < 0) || (ch0[idx - 1] < 0 && ch0[idx] >= 0))) {
-        zcr++;
+        zc++;
       }
     }
-    const rms = Math.sqrt(sumSq / winSamples);
-    rmsArr[w] = rms;
-    zcrArr[w] = zcr / winSamples;
-    if (rms > 0.00002 && rms < minRms) minRms = rms;
+    const rms = Math.sqrt(sumSq / frameSamples);
+    rmsArr[f] = rms;
+    zcrArr[f] = zc / frameSamples;
+    if (rms > 0.00001 && rms < minRms) minRms = rms;
   }
 
-  const noiseFloor = minRms === Infinity ? 0.001 : minRms;
+  const noiseFloor = minRms === Infinity ? 0.0005 : minRms;
 
   // Determine Linear Threshold
   let linearThresh;
   if (thresholdMode === 'auto' || thresholdMode === 'auto-detect') {
-    const fromPeak = peakAmp * Math.pow(10, -36 / 20); // -36 dB relative to peak
+    const fromPeak = peakAmp * Math.pow(10, -32 / 20); // -32 dB relative to peak
     const fromNoise = noiseFloor * 2.8;               // +9 dB above noise floor
-    linearThresh = Math.max(fromPeak, fromNoise, 0.0015);
-  } else {
-    const db = +thresholdMode || -34;
+    linearThresh = Math.max(fromPeak, fromNoise, peakAmp * 0.015, 0.0005);
+  } else if (thresholdMode === 'tight' || +thresholdMode >= -26) {
+    const db = typeof thresholdMode === 'number' ? thresholdMode : (+thresholdMode || -24);
     linearThresh = Math.max(0.001, peakAmp * Math.pow(10, db / 20));
+  } else if (thresholdMode === 'soft' || +thresholdMode <= -40) {
+    const db = typeof thresholdMode === 'number' ? thresholdMode : (+thresholdMode || -40);
+    linearThresh = Math.max(0.0005, peakAmp * Math.pow(10, db / 20));
+  } else {
+    const db = +thresholdMode || -32;
+    linearThresh = Math.max(0.0008, peakAmp * Math.pow(10, db / 20));
   }
 
-  // 2. Backwards scan for sound boundary
-  // Consonants like 't', 's', 'sh' have high ZCR (>0.14) even at lower RMS
-  let soundEndWinIdx = numWins - 1;
-  let foundSound = false;
+  // PASS 1: Forward Decay Tracking from Peak
+  // Follows true vocal body decay forward from maximum energy, immune to trailing clicks
+  const peakFrame = Math.floor(peakIdx / hopSamples);
+  let speechEndFrame = peakFrame;
 
-  for (let w = numWins - 1; w >= 1; w--) {
-    const rms = rmsArr[w];
-    const zcr = zcrArr[w];
-    const prevRms = rmsArr[w - 1];
-
-    const isConsonant = zcr > 0.14 && rms > linearThresh * 0.45;
-    const isVoice = rms >= linearThresh && (prevRms >= linearThresh * 0.7 || rms >= linearThresh * 1.5);
-
-    if (isVoice || isConsonant) {
-      soundEndWinIdx = w;
-      foundSound = true;
-      break;
+  for (let f = peakFrame; f < numFrames; f++) {
+    const rms = rmsArr[f];
+    const zcr = zcrArr[f];
+    if (rms >= linearThresh || (zcr > 0.16 && rms >= linearThresh * 0.4)) {
+      speechEndFrame = f;
+    } else {
+      let sustainedSilence = true;
+      const lookahead = Math.min(numFrames, f + Math.floor(0.015 * sr / hopSamples)); // 15ms lookahead
+      for (let k = f; k < lookahead; k++) {
+        if (rmsArr[k] >= linearThresh * 1.2) {
+          sustainedSilence = false;
+          break;
+        }
+      }
+      if (sustainedSilence) {
+        break;
+      } else {
+        speechEndFrame = f;
+      }
     }
   }
 
-  const soundEndSample = foundSound ? Math.min(len, (soundEndWinIdx + 1) * hopSamples + winSamples) : len;
+  const soundEndSample = Math.min(len, (speechEndFrame + 1) * hopSamples + frameSamples);
   const soundEndTimeSec = soundEndSample / sr;
 
-  // 3. Scan the trailing region for clicks/glitches/spikes after sound end
-  let tailPeak = 0;
-  let maxDerivative = 0;
+  // PASS 2: Trailing Transient Spike / Glitch Hunter
   let firstGlitchSample = -1;
+  let maxDerivative = 0;
+  let tailPeak = 0;
 
   for (let i = soundEndSample; i < len - 1; i++) {
     const a0 = Math.abs(ch0[i]);
     const a1 = ch1 ? Math.abs(ch1[i]) : 0;
     const a = a0 > a1 ? a0 : a1;
-    const d = Math.abs(ch0[i + 1] - ch0[i]);
+    const d0 = Math.abs(ch0[i + 1] - ch0[i]);
+    const d1 = ch1 ? Math.abs(ch1[i + 1] - ch1[i]) : 0;
+    const d = d0 > d1 ? d0 : d1;
+
     if (a > tailPeak) tailPeak = a;
     if (d > maxDerivative) maxDerivative = d;
-    if (firstGlitchSample === -1 && (d > 0.008 || a > linearThresh * 1.25)) {
+
+    // Detect sudden step transitions or transient jumps in the post-decay region
+    if (firstGlitchSample === -1 && (d > 0.0035 || a > linearThresh * 1.15)) {
       firstGlitchSample = i;
     }
   }
 
-  // 4. Calculate padding ("a millisecond later")
-  let actualPadMs = 10;
+  // Adaptive Padding Margin Calculation
+  let actualPadMs = 8;
   if (paddingMode === 'auto') {
     if (firstGlitchSample !== -1 && firstGlitchSample > soundEndSample) {
       const msToGlitch = ((firstGlitchSample - soundEndSample) / sr) * 1000;
-      actualPadMs = Math.max(3, Math.min(12, Math.floor(msToGlitch - 2)));
+      actualPadMs = Math.max(0, Math.min(8, Math.floor(msToGlitch - 2)));
     } else {
-      actualPadMs = 10;
+      actualPadMs = 8;
     }
   } else {
     actualPadMs = Math.max(0, +paddingMode);
   }
 
-  const padSamples = Math.floor((actualPadMs / 1000) * sr);
-  let cutSample = Math.min(len, soundEndSample + padSamples);
+  let cutSample = soundEndSample + Math.floor((actualPadMs / 1000) * sr);
 
-  // Snap to nearest zero-crossing
+  // STRICT GLITCH EXCLUSION GUARANTEE:
+  // If any trailing glitch/spike was detected, the cut point is strictly forced to be before the glitch!
+  if (firstGlitchSample !== -1 && cutSample >= firstGlitchSample) {
+    cutSample = Math.max(16, firstGlitchSample - Math.max(32, Math.floor(0.002 * sr)));
+  }
+
+  // Snap to Nearest Zero-Crossing (strictly bounded before firstGlitchSample)
   if (snapZero && cutSample > 16) {
-    const zeroWin = Math.min(Math.floor(sr * 0.0035), 128);
+    const zeroWin = Math.min(Math.floor(sr * 0.003), 128);
     let bestZero = cutSample;
     let minDiff = Infinity;
     const startS = Math.max(1, cutSample - zeroWin);
-    const endS = Math.min(len - 1, cutSample + zeroWin);
-    for (let i = startS; i < endS; i++) {
+    const endS = firstGlitchSample !== -1
+      ? Math.min(firstGlitchSample - 1, cutSample + zeroWin)
+      : Math.min(len - 1, cutSample + zeroWin);
+    for (let i = startS; i <= endS; i++) {
       if ((ch0[i] >= 0 && ch0[i + 1] < 0) || (ch0[i] < 0 && ch0[i + 1] >= 0)) {
         if (Math.abs(ch0[i]) < minDiff) {
           minDiff = Math.abs(ch0[i]);
@@ -4171,22 +4204,30 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     cutSample = bestZero;
   }
 
+  // Re-verify that zero-crossing snap never crossed the glitch
+  if (firstGlitchSample !== -1 && cutSample >= firstGlitchSample) {
+    cutSample = Math.max(16, firstGlitchSample - 1);
+  }
+
   cutSample = Math.max(32, Math.min(len, cutSample));
   const cutTimeSec = cutSample / sr;
   const removedMs = Math.round(((len - cutSample) / sr) * 1000);
 
   let issue = '';
-  if (removedMs > 40) {
+  if (removedMs > 30) {
     if (firstGlitchSample !== -1) {
-      const glitchMs = Math.round(((firstGlitchSample - soundEndSample) / sr) * 1000);
-      issue = `⚡ Auto: Cut ${removedMs}ms (Glitch +${glitchMs}ms)`;
+      issue = `🛡️ Glitch Purged (-${removedMs}ms)`;
     } else {
-      issue = `⚡ Auto: Cut ${removedMs}ms Dead Tail`;
+      issue = `✂ Cut ${removedMs}ms Dead Tail`;
     }
   } else if (removedMs > 0) {
-    issue = `⚡ Auto: Cut ${removedMs}ms Tail`;
+    if (firstGlitchSample !== -1) {
+      issue = `🛡️ Glitch Purged (-${removedMs}ms)`;
+    } else {
+      issue = `✂ Cut ${removedMs}ms`;
+    }
   } else {
-    issue = `✓ Full Sound Preserved`;
+    issue = `✓ Clean Track`;
   }
 
   return {
@@ -4199,6 +4240,7 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     tailPeak,
     maxDerivative,
     firstGlitchSample,
+    firstGlitchSec: firstGlitchSample !== -1 ? firstGlitchSample / sr : null,
     issue,
     peakAmp
   };
@@ -4309,7 +4351,8 @@ function cleanAudioTail(buffer, options = {}) {
   const fadeSamples = Math.min(cutPoint - 1, Math.max(8, Math.floor((actualFadeMs / 1000) * sr)));
   const fadeStart = cutPoint - fadeSamples;
 
-  const outBuf = actx.createBuffer(nc, cutPoint, sr);
+  const ctx = (typeof actx !== 'undefined' && actx) ? actx : new (window.AudioContext || window.webkitAudioContext)();
+  const outBuf = ctx.createBuffer(nc, cutPoint, sr);
 
   for (let ch = 0; ch < nc; ch++) {
     const src = buffer.getChannelData(ch);
@@ -5231,7 +5274,7 @@ function renderTCQueue() {
   TC_STATE.queue.forEach((item) => {
     const tr = document.createElement('tr');
     tr.className = 'tc-queue-row';
-    const hasGlitch = (item.analysis.maxDerivative > 0.012 || item.analysis.tailPeak > 0.01 || item.analysis.stepJump > 0.06);
+    const hasGlitch = (item.analysis.firstGlitchSample !== -1 || item.analysis.maxDerivative > 0.0035 || item.analysis.tailPeak > 0.01 || item.analysis.stepJump > 0.06);
     const badgeClass = hasGlitch ? 'glitch' : 'clean';
     const removedMs = item.analysis.removedMs !== undefined
       ? item.analysis.removedMs
