@@ -1113,16 +1113,16 @@ input[type=text], input[type=number] {
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
               <span style="color:var(--text);font-weight:500">End Audio After Sound:</span>
-              <span id="tc-padding-val" style="font-family:var(--font-mono);color:var(--accent);font-weight:700">10 ms</span>
+              <span id="tc-padding-val" style="font-family:var(--font-mono);color:var(--accent);font-weight:700">Auto</span>
             </div>
-            <div style="font-size:9.5px;color:var(--text-muted);margin-bottom:2px">Leaves X ms of natural decay after speech ends, then cleanly cuts away all remaining clicks, buzz & dead tail</div>
+            <div style="font-size:9.5px;color:var(--text-muted);margin-bottom:2px">Leaves a natural decay margin after speech ends, then cleanly cuts away all remaining clicks, buzz & dead tail</div>
             <div style="display:flex;align-items:center;gap:8px">
               <input type="range" id="tc-padding-slider" min="0" max="100" step="1" value="10" style="flex:1;height:4px">
             </div>
             <div class="ratio-segmented" id="tc-padding-presets" style="margin-top:4px">
-              <button class="ratio-btn" data-tc-pad="2">2ms</button>
+              <button class="ratio-btn active" data-tc-pad="auto">⚡ Auto</button>
               <button class="ratio-btn" data-tc-pad="5">5ms</button>
-              <button class="ratio-btn active" data-tc-pad="10">10ms</button>
+              <button class="ratio-btn" data-tc-pad="10">10ms</button>
               <button class="ratio-btn" data-tc-pad="20">20ms</button>
               <button class="ratio-btn" data-tc-pad="40">40ms</button>
             </div>
@@ -1132,15 +1132,16 @@ input[type=text], input[type=number] {
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
               <span style="color:var(--text-dim)">Speech / Sound Sensitivity:</span>
-              <span id="tc-thresh-val" style="font-family:var(--font-mono);color:var(--accent-cyan);font-weight:600">-34 dB</span>
+              <span id="tc-thresh-val" style="font-family:var(--font-mono);color:var(--accent-cyan);font-weight:600">Auto-Detect</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
               <input type="range" id="tc-thresh-slider" min="-50" max="-20" step="1" value="-34" style="flex:1;height:4px">
             </div>
             <div class="ratio-segmented" id="tc-thresh-presets" style="margin-top:4px">
-              <button class="ratio-btn" data-tc-thresh="-42">Soft Voice (-42dB)</button>
-              <button class="ratio-btn active" data-tc-thresh="-34">Standard (-34dB)</button>
-              <button class="ratio-btn" data-tc-thresh="-26">Tight Cut (-26dB)</button>
+              <button class="ratio-btn active" data-tc-thresh="auto">⚡ Auto-Detect</button>
+              <button class="ratio-btn" data-tc-thresh="-42">Soft (-42dB)</button>
+              <button class="ratio-btn" data-tc-thresh="-34">Standard (-34dB)</button>
+              <button class="ratio-btn" data-tc-thresh="-26">Tight (-26dB)</button>
             </div>
           </div>
         </div>
@@ -1215,8 +1216,8 @@ input[type=text], input[type=number] {
     <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:12px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;align-items:center;gap:12px">
         <span style="font-size:11px;color:var(--text-dim);font-weight:600">Output Format:</span>
-        <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="wav" checked> WAV (16-bit Lossless)</label>
-        <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="mp3"> MP3 (192 kbps)</label>
+        <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="mp3" checked> MP3 (192 kbps)</label>
+        <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="wav"> WAV (16-bit Lossless)</label>
         <span id="tc-status-msg" style="font-size:11px;color:var(--text-muted);margin-left:8px">0 files loaded</span>
       </div>
 
@@ -4013,6 +4014,7 @@ function detectAcousticSoundEnd(buffer, options = {}) {
       cutSample: len,
       cutTimeSec: len / sr,
       removedMs: 0,
+      actualPadMs: 10,
       peakAmp: 0,
       tailPeak: 0,
       maxDerivative: 0,
@@ -4021,15 +4023,15 @@ function detectAcousticSoundEnd(buffer, options = {}) {
   }
 
   const {
-    thresholdDb = -34,   // relative dB from peak (-50 to -20 dB)
-    paddingMs = 10,       // audio ends X ms later (0 to 100 ms)
+    thresholdMode = 'auto', // 'auto' or numeric dB like -34
+    paddingMode = 'auto',   // 'auto' or numeric ms like 10
     snapZero = true
   } = options;
 
   const ch0 = buffer.getChannelData(0);
   const ch1 = nc > 1 ? buffer.getChannelData(1) : null;
 
-  // 1. Find overall peak amplitude
+  // 1. Overall Peak & Windowed Analysis
   let peakAmp = 0;
   for (let i = 0; i < len; i++) {
     const a0 = Math.abs(ch0[i]);
@@ -4045,6 +4047,7 @@ function detectAcousticSoundEnd(buffer, options = {}) {
       cutSample: len,
       cutTimeSec: len / sr,
       removedMs: 0,
+      actualPadMs: 0,
       peakAmp,
       tailPeak: 0,
       maxDerivative: 0,
@@ -4052,41 +4055,107 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     };
   }
 
-  // Linear amplitude threshold relative to peak (e.g. -34 dB -> peakAmp * 10^(-34/20))
-  const linearThresh = Math.max(0.0015, peakAmp * Math.pow(10, thresholdDb / 20));
-
-  // 2. Scan backwards using a short 2.5ms window with 1.25ms hop
-  const winSamples = Math.max(16, Math.floor((2.5 / 1000) * sr));
+  // Windowed RMS & Zero-Crossing Rate (ZCR)
+  const winSamples = Math.max(16, Math.floor((3.0 / 1000) * sr));
   const hopSamples = Math.max(8, Math.floor(winSamples / 2));
-  let soundEndSample = len;
+  const numWins = Math.floor((len - winSamples) / hopSamples);
 
-  for (let i = len - winSamples; i >= 0; i -= hopSamples) {
+  const rmsArr = new Float32Array(numWins);
+  const zcrArr = new Float32Array(numWins);
+  let minRms = Infinity;
+
+  for (let w = 0; w < numWins; w++) {
+    const start = w * hopSamples;
     let sumSq = 0;
-    let maxVal = 0;
+    let zcr = 0;
     for (let j = 0; j < winSamples; j++) {
-      const idx = i + j;
-      const v0 = Math.abs(ch0[idx]);
-      const v1 = ch1 ? Math.abs(ch1[idx]) : 0;
-      const v = v0 > v1 ? v0 : v1;
-      if (v > maxVal) maxVal = v;
+      const idx = start + j;
+      const v0 = ch0[idx];
+      const v1 = ch1 ? ch1[idx] : 0;
+      const v = Math.abs(v0) > Math.abs(v1) ? v0 : v1;
       sumSq += v * v;
+      if (j > 0 && ((ch0[idx - 1] >= 0 && ch0[idx] < 0) || (ch0[idx - 1] < 0 && ch0[idx] >= 0))) {
+        zcr++;
+      }
     }
     const rms = Math.sqrt(sumSq / winSamples);
+    rmsArr[w] = rms;
+    zcrArr[w] = zcr / winSamples;
+    if (rms > 0.00002 && rms < minRms) minRms = rms;
+  }
 
-    // If RMS exceeds threshold or peak in window exceeds 1.35x threshold, this is part of active sound!
-    if (rms >= linearThresh || maxVal >= linearThresh * 1.35) {
-      soundEndSample = Math.min(len, i + winSamples);
+  const noiseFloor = minRms === Infinity ? 0.001 : minRms;
+
+  // Determine Linear Threshold
+  let linearThresh;
+  if (thresholdMode === 'auto' || thresholdMode === 'auto-detect') {
+    const fromPeak = peakAmp * Math.pow(10, -36 / 20); // -36 dB relative to peak
+    const fromNoise = noiseFloor * 2.8;               // +9 dB above noise floor
+    linearThresh = Math.max(fromPeak, fromNoise, 0.0015);
+  } else {
+    const db = +thresholdMode || -34;
+    linearThresh = Math.max(0.001, peakAmp * Math.pow(10, db / 20));
+  }
+
+  // 2. Backwards scan for sound boundary
+  // Consonants like 't', 's', 'sh' have high ZCR (>0.14) even at lower RMS
+  let soundEndWinIdx = numWins - 1;
+  let foundSound = false;
+
+  for (let w = numWins - 1; w >= 1; w--) {
+    const rms = rmsArr[w];
+    const zcr = zcrArr[w];
+    const prevRms = rmsArr[w - 1];
+
+    const isConsonant = zcr > 0.14 && rms > linearThresh * 0.45;
+    const isVoice = rms >= linearThresh && (prevRms >= linearThresh * 0.7 || rms >= linearThresh * 1.5);
+
+    if (isVoice || isConsonant) {
+      soundEndWinIdx = w;
+      foundSound = true;
       break;
     }
   }
 
-  // 3. Add release padding ("ends the audio a millisecond later so after cut sound is removed")
-  const padSamples = Math.floor((Math.max(0, paddingMs) / 1000) * sr);
+  const soundEndSample = foundSound ? Math.min(len, (soundEndWinIdx + 1) * hopSamples + winSamples) : len;
+  const soundEndTimeSec = soundEndSample / sr;
+
+  // 3. Scan the trailing region for clicks/glitches/spikes after sound end
+  let tailPeak = 0;
+  let maxDerivative = 0;
+  let firstGlitchSample = -1;
+
+  for (let i = soundEndSample; i < len - 1; i++) {
+    const a0 = Math.abs(ch0[i]);
+    const a1 = ch1 ? Math.abs(ch1[i]) : 0;
+    const a = a0 > a1 ? a0 : a1;
+    const d = Math.abs(ch0[i + 1] - ch0[i]);
+    if (a > tailPeak) tailPeak = a;
+    if (d > maxDerivative) maxDerivative = d;
+    if (firstGlitchSample === -1 && (d > 0.008 || a > linearThresh * 1.25)) {
+      firstGlitchSample = i;
+    }
+  }
+
+  // 4. Calculate padding ("a millisecond later")
+  let actualPadMs = 10;
+  if (paddingMode === 'auto') {
+    if (firstGlitchSample !== -1 && firstGlitchSample > soundEndSample) {
+      const msToGlitch = ((firstGlitchSample - soundEndSample) / sr) * 1000;
+      actualPadMs = Math.max(3, Math.min(12, Math.floor(msToGlitch - 2)));
+    } else {
+      actualPadMs = 10;
+    }
+  } else {
+    actualPadMs = Math.max(0, +paddingMode);
+  }
+
+  const padSamples = Math.floor((actualPadMs / 1000) * sr);
   let cutSample = Math.min(len, soundEndSample + padSamples);
 
-  // 4. Snap to nearest zero-crossing around cutSample
+  // Snap to nearest zero-crossing
   if (snapZero && cutSample > 16) {
-    const zeroWin = Math.min(Math.floor(sr * 0.003), 128);
+    const zeroWin = Math.min(Math.floor(sr * 0.0035), 128);
     let bestZero = cutSample;
     let minDiff = Infinity;
     const startS = Math.max(1, cutSample - zeroWin);
@@ -4103,31 +4172,19 @@ function detectAcousticSoundEnd(buffer, options = {}) {
   }
 
   cutSample = Math.max(32, Math.min(len, cutSample));
-
-  const soundEndTimeSec = soundEndSample / sr;
   const cutTimeSec = cutSample / sr;
   const removedMs = Math.round(((len - cutSample) / sr) * 1000);
 
-  // Analyze if there is a glitch / click / spike in the excised tail
-  let tailPeak = 0;
-  let maxDerivative = 0;
-  const tailStart = Math.min(len - 1, cutSample);
-  for (let i = tailStart; i < len - 1; i++) {
-    const a = Math.abs(ch0[i]);
-    if (a > tailPeak) tailPeak = a;
-    const d = Math.abs(ch0[i + 1] - ch0[i]);
-    if (d > maxDerivative) maxDerivative = d;
-  }
-
   let issue = '';
   if (removedMs > 40) {
-    if (maxDerivative > 0.012 || tailPeak > 0.01) {
-      issue = `✂ Cut ${removedMs}ms (Glitch Removed)`;
+    if (firstGlitchSample !== -1) {
+      const glitchMs = Math.round(((firstGlitchSample - soundEndSample) / sr) * 1000);
+      issue = `⚡ Auto: Cut ${removedMs}ms (Glitch +${glitchMs}ms)`;
     } else {
-      issue = `✂ Cut ${removedMs}ms Dead Tail`;
+      issue = `⚡ Auto: Cut ${removedMs}ms Dead Tail`;
     }
   } else if (removedMs > 0) {
-    issue = `✂ Cut ${removedMs}ms Tail`;
+    issue = `⚡ Auto: Cut ${removedMs}ms Tail`;
   } else {
     issue = `✓ Full Sound Preserved`;
   }
@@ -4138,8 +4195,10 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     cutSample,
     cutTimeSec,
     removedMs,
+    actualPadMs,
     tailPeak,
     maxDerivative,
+    firstGlitchSample,
     issue,
     peakAmp
   };
@@ -4191,8 +4250,8 @@ function cleanAudioTail(buffer, options = {}) {
 
   const {
     mode = 'smart',
-    thresholdDb = -34,
-    paddingMs = 10,
+    thresholdMode = 'auto',
+    paddingMode = 'auto',
     trimMs = 25,
     fadeMs = 8,
     snapZero = true,
@@ -4201,7 +4260,7 @@ function cleanAudioTail(buffer, options = {}) {
 
   let cutPoint = len;
   if (mode === 'smart') {
-    const det = detectAcousticSoundEnd(buffer, { thresholdDb, paddingMs, snapZero });
+    const det = detectAcousticSoundEnd(buffer, { thresholdMode, paddingMode, snapZero });
     cutPoint = det.cutSample;
   } else {
     const tMs = Math.max(0, +trimMs || 0);
@@ -4275,13 +4334,13 @@ function cleanAudioTail(buffer, options = {}) {
 const TC_STATE = {
   queue: [],
   nextId: 1,
-  mode: 'smart',         // 'smart' (detect sound end) or 'fixed' (trim EOF)
-  thresholdDb: -34,      // -50 to -20 dB
-  paddingMs: 10,         // audio ends X ms later (0 to 100 ms)
-  trimMs: 25,            // fixed mode trim (0 to 150 ms)
-  fadeMs: 8,             // S-curve micro fade (2 to 30 ms)
-  snapZero: true,        // snap to zero crossing
-  removeDC: true,        // eliminate DC bias
+  mode: 'smart',            // 'smart' (detect sound end) or 'fixed' (trim EOF)
+  thresholdMode: 'auto',    // 'auto' or numeric dB (-50 to -20 dB)
+  paddingMode: 'auto',      // 'auto' or numeric ms (0 to 100 ms)
+  trimMs: 25,               // fixed mode trim (0 to 150 ms)
+  fadeMs: 8,                // S-curve micro fade (2 to 30 ms)
+  snapZero: true,           // snap to zero crossing
+  removeDC: true,           // eliminate DC bias
 };
 // TIMELINE MOUSE INTERACTIONS
 // ─────────────────────────────────────────────────────────────────
@@ -5112,8 +5171,8 @@ async function addFilesToTailCleaner(files) {
       let analysis;
       if (TC_STATE.mode === 'smart') {
         analysis = detectAcousticSoundEnd(origBuf, {
-          thresholdDb: TC_STATE.thresholdDb,
-          paddingMs: TC_STATE.paddingMs,
+          thresholdMode: TC_STATE.thresholdMode,
+          paddingMode: TC_STATE.paddingMode,
           snapZero: TC_STATE.snapZero
         });
       } else {
@@ -5122,8 +5181,8 @@ async function addFilesToTailCleaner(files) {
 
       const cleanedBuf = cleanAudioTail(origBuf, {
         mode: TC_STATE.mode,
-        thresholdDb: TC_STATE.thresholdDb,
-        paddingMs: TC_STATE.paddingMs,
+        thresholdMode: TC_STATE.thresholdMode,
+        paddingMode: TC_STATE.paddingMode,
         trimMs: TC_STATE.trimMs,
         fadeMs: TC_STATE.fadeMs,
         snapZero: TC_STATE.snapZero,
@@ -5241,7 +5300,7 @@ function renderTCQueue() {
     const id = +e.currentTarget.dataset.tcExp;
     const item = TC_STATE.queue.find(x => x.id === id);
     if (!item) return;
-    const fmt = document.querySelector('input[name="tc-fmt"]:checked')?.value || 'wav';
+    const fmt = document.querySelector('input[name="tc-fmt"]:checked')?.value || 'mp3';
     await exportBufferDirectly(item.cleanedBuffer, `${item.name}_clean`, fmt);
   }));
 
@@ -5265,8 +5324,8 @@ function recomputeAllCleanedBuffers() {
   for (const item of TC_STATE.queue) {
     if (TC_STATE.mode === 'smart') {
       item.analysis = detectAcousticSoundEnd(item.originalBuffer, {
-        thresholdDb: TC_STATE.thresholdDb,
-        paddingMs: TC_STATE.paddingMs,
+        thresholdMode: TC_STATE.thresholdMode,
+        paddingMode: TC_STATE.paddingMode,
         snapZero: TC_STATE.snapZero
       });
     } else {
@@ -5274,8 +5333,8 @@ function recomputeAllCleanedBuffers() {
     }
     item.cleanedBuffer = cleanAudioTail(item.originalBuffer, {
       mode: TC_STATE.mode,
-      thresholdDb: TC_STATE.thresholdDb,
-      paddingMs: TC_STATE.paddingMs,
+      thresholdMode: TC_STATE.thresholdMode,
+      paddingMode: TC_STATE.paddingMode,
       trimMs: TC_STATE.trimMs,
       fadeMs: TC_STATE.fadeMs,
       snapZero: TC_STATE.snapZero,
@@ -5290,7 +5349,7 @@ function recomputeAllCleanedBuffers() {
 document.getElementById('btn-tc-download-zip')?.addEventListener('click', async () => {
   if (TC_STATE.queue.length === 0) return alert('No audio files in queue to export.');
   ensureCtx();
-  const fmt = document.querySelector('input[name="tc-fmt"]:checked')?.value || 'wav';
+  const fmt = document.querySelector('input[name="tc-fmt"]:checked')?.value || 'mp3';
   showProc(`Packaging ${TC_STATE.queue.length} cleaned files into ZIP…`, 10);
   await pause(20);
 
@@ -5331,7 +5390,7 @@ document.getElementById('btn-tc-download-zip')?.addEventListener('click', async 
 document.getElementById('btn-tc-download-seq')?.addEventListener('click', async () => {
   if (TC_STATE.queue.length === 0) return alert('No audio files in queue to export.');
   ensureCtx();
-  const fmt = document.querySelector('input[name="tc-fmt"]:checked')?.value || 'wav';
+  const fmt = document.querySelector('input[name="tc-fmt"]:checked')?.value || 'mp3';
   showProc(`Exporting ${TC_STATE.queue.length} files…`, 10);
 
   let i = 0;
@@ -5433,10 +5492,10 @@ document.querySelectorAll('#tc-mode-selector .ratio-btn').forEach(btn => {
 const tcPaddingSlider = document.getElementById('tc-padding-slider');
 const tcPaddingVal = document.getElementById('tc-padding-val');
 tcPaddingSlider?.addEventListener('input', e => {
-  TC_STATE.paddingMs = +e.target.value;
-  if (tcPaddingVal) tcPaddingVal.textContent = `${TC_STATE.paddingMs} ms`;
+  TC_STATE.paddingMode = +e.target.value;
+  if (tcPaddingVal) tcPaddingVal.textContent = `${TC_STATE.paddingMode} ms`;
   document.querySelectorAll('#tc-padding-presets .ratio-btn').forEach(b => {
-    b.classList.toggle('active', +b.dataset.tcPad === TC_STATE.paddingMs);
+    b.classList.toggle('active', +b.dataset.tcPad === TC_STATE.paddingMode);
   });
   recomputeAllCleanedBuffers();
 });
@@ -5444,10 +5503,16 @@ tcPaddingSlider?.addEventListener('input', e => {
 document.getElementById('tc-padding-presets')?.addEventListener('click', e => {
   const btn = e.target.closest('[data-tc-pad]');
   if (!btn) return;
-  TC_STATE.paddingMs = +btn.dataset.tcPad;
-  if (tcPaddingSlider) tcPaddingSlider.value = TC_STATE.paddingMs;
-  if (tcPaddingVal) tcPaddingVal.textContent = `${TC_STATE.paddingMs} ms`;
+  const padVal = btn.dataset.tcPad;
   document.querySelectorAll('#tc-padding-presets .ratio-btn').forEach(b => b.classList.toggle('active', b === btn));
+  if (padVal === 'auto') {
+    TC_STATE.paddingMode = 'auto';
+    if (tcPaddingVal) tcPaddingVal.textContent = 'Auto';
+  } else {
+    TC_STATE.paddingMode = +padVal;
+    if (tcPaddingSlider) tcPaddingSlider.value = TC_STATE.paddingMode;
+    if (tcPaddingVal) tcPaddingVal.textContent = `${TC_STATE.paddingMode} ms`;
+  }
   recomputeAllCleanedBuffers();
 });
 
@@ -5455,10 +5520,10 @@ document.getElementById('tc-padding-presets')?.addEventListener('click', e => {
 const tcThreshSlider = document.getElementById('tc-thresh-slider');
 const tcThreshVal = document.getElementById('tc-thresh-val');
 tcThreshSlider?.addEventListener('input', e => {
-  TC_STATE.thresholdDb = +e.target.value;
-  if (tcThreshVal) tcThreshVal.textContent = `${TC_STATE.thresholdDb} dB`;
+  TC_STATE.thresholdMode = +e.target.value;
+  if (tcThreshVal) tcThreshVal.textContent = `${TC_STATE.thresholdMode} dB`;
   document.querySelectorAll('#tc-thresh-presets .ratio-btn').forEach(b => {
-    b.classList.toggle('active', +b.dataset.tcThresh === TC_STATE.thresholdDb);
+    b.classList.toggle('active', +b.dataset.tcThresh === TC_STATE.thresholdMode);
   });
   recomputeAllCleanedBuffers();
 });
@@ -5466,10 +5531,16 @@ tcThreshSlider?.addEventListener('input', e => {
 document.getElementById('tc-thresh-presets')?.addEventListener('click', e => {
   const btn = e.target.closest('[data-tc-thresh]');
   if (!btn) return;
-  TC_STATE.thresholdDb = +btn.dataset.tcThresh;
-  if (tcThreshSlider) tcThreshSlider.value = TC_STATE.thresholdDb;
-  if (tcThreshVal) tcThreshVal.textContent = `${TC_STATE.thresholdDb} dB`;
+  const threshVal = btn.dataset.tcThresh;
   document.querySelectorAll('#tc-thresh-presets .ratio-btn').forEach(b => b.classList.toggle('active', b === btn));
+  if (threshVal === 'auto') {
+    TC_STATE.thresholdMode = 'auto';
+    if (tcThreshVal) tcThreshVal.textContent = 'Auto-Detect';
+  } else {
+    TC_STATE.thresholdMode = +threshVal;
+    if (tcThreshSlider) tcThreshSlider.value = TC_STATE.thresholdMode;
+    if (tcThreshVal) tcThreshVal.textContent = `${TC_STATE.thresholdMode} dB`;
+  }
   recomputeAllCleanedBuffers();
 });
 
