@@ -2302,6 +2302,8 @@ async function restoreSessionFromStorage() {
         S.stretchRatio = s.stretchRatio;
         const srEl = document.getElementById('stretch-ratio-val');
         if (srEl) srEl.textContent = `${s.stretchRatio.toFixed(1)}×`;
+        const crEl = document.getElementById('custom-ratio');
+        if (crEl) crEl.value = s.stretchRatio;
       }
       if (s.inspTab) setInspectorTab(s.inspTab);
       if (s.eqBands) S.eqBands = s.eqBands;
@@ -2509,10 +2511,15 @@ function ensureCtx() {
 }
 
 function startPeakMonitor() {
-  if (peakAnimId) return;
+  if (peakAnimId || !S.isPlaying) return;
   const peakDot = document.getElementById('master-peak-dot');
   function checkPeak() {
-    if (masterAnalyser && masterAnalyserData && S.isPlaying) {
+    if (!S.isPlaying) {
+      if (peakDot) peakDot.classList.remove('clipped');
+      peakAnimId = null;
+      return;
+    }
+    if (masterAnalyser && masterAnalyserData) {
       masterAnalyser.getFloatTimeDomainData(masterAnalyserData);
       let maxAmp = 0;
       for (let i = 0; i < masterAnalyserData.length; i++) {
@@ -2526,8 +2533,6 @@ function startPeakMonitor() {
           peakDot.classList.remove('clipped');
         }
       }
-    } else if (peakDot) {
-      peakDot.classList.remove('clipped');
     }
     peakAnimId = requestAnimationFrame(checkPeak);
   }
@@ -2764,6 +2769,7 @@ function startPlayback() {
     }
   }
   document.getElementById('btn-play').textContent = '⏸';
+  startPeakMonitor();
   _raf = requestAnimationFrame(animLoop);
 }
 
@@ -2774,6 +2780,9 @@ function stopPlayback(resetHead = false) {
   if (resetHead) S.playheadTime = 0;
   document.getElementById('btn-play').textContent = '▶';
   if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
+  if (peakAnimId) { cancelAnimationFrame(peakAnimId); peakAnimId = null; }
+  const peakDot = document.getElementById('master-peak-dot');
+  if (peakDot) peakDot.classList.remove('clipped');
 }
 
 function animLoop() {
@@ -3364,7 +3373,11 @@ function computeSTFT(channelData, sampleRate, fftSize = 512, hopSize = 256) {
   const maxFreq = 6000;
   const binResolution = sampleRate / fftSize;
   const numBins = Math.min(Math.floor(fftSize / 2), Math.floor(maxFreq / binResolution));
-  const numSlices = Math.floor((channelData.length - fftSize) / hopSize);
+
+  // Adaptive hop size to cap slices at ~280 max (eliminates UI freeze on multi-second clips)
+  const maxSlices = 280;
+  const effectiveHop = Math.max(hopSize, Math.floor((channelData.length - fftSize) / maxSlices));
+  const numSlices = Math.floor((channelData.length - fftSize) / effectiveHop);
   if (numSlices <= 0 || numBins <= 0) return null;
 
   const window = new Float32Array(fftSize);
@@ -3372,19 +3385,31 @@ function computeSTFT(channelData, sampleRate, fftSize = 512, hopSize = 256) {
     window[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (fftSize - 1)));
   }
 
+  // Precompute trig tables for active frequency bins
+  const cosTable = new Float32Array(numBins * fftSize);
+  const sinTable = new Float32Array(numBins * fftSize);
+  for (let k = 0; k < numBins; k++) {
+    const omega = (2 * Math.PI * k) / fftSize;
+    const kOffset = k * fftSize;
+    for (let n = 0; n < fftSize; n++) {
+      cosTable[kOffset + n] = Math.cos(omega * n);
+      sinTable[kOffset + n] = Math.sin(omega * n);
+    }
+  }
+
   const spectrogram = [];
   let maxMagnitude = 0;
 
   for (let s = 0; s < numSlices; s++) {
-    const offset = s * hopSize;
+    const offset = s * effectiveHop;
     const slice = new Float32Array(numBins);
     for (let k = 0; k < numBins; k++) {
       let real = 0, imag = 0;
-      const omega = 2 * Math.PI * k / fftSize;
+      const kOffset = k * fftSize;
       for (let n = 0; n < fftSize; n++) {
         const val = channelData[offset + n] * window[n];
-        real += val * Math.cos(omega * n);
-        imag -= val * Math.sin(omega * n);
+        real += val * cosTable[kOffset + n];
+        imag -= val * sinTable[kOffset + n];
       }
       const mag = Math.sqrt(real * real + imag * imag);
       slice[k] = mag;
@@ -3959,6 +3984,9 @@ function renderMediaLibrary() {
 function removeMediaDirectly(mediaId) {
   const m = getMedia(mediaId);
   if (!m) return;
+  if (m.videoUrl && m.videoUrl.startsWith('blob:')) {
+    try { URL.revokeObjectURL(m.videoUrl); } catch(e) {}
+  }
   snapshot();
   S.mediaFiles = S.mediaFiles.filter(item => item.id !== mediaId);
   S.tracks.forEach(t => { t.clips = t.clips.filter(c => c.mediaId !== mediaId); });
@@ -6872,6 +6900,11 @@ document.getElementById('btn-clear-media')?.addEventListener('click', () => {
   if (S.mediaFiles.length === 0) return;
   snapshot();
   const count = S.mediaFiles.length;
+  S.mediaFiles.forEach(m => {
+    if (m.videoUrl && m.videoUrl.startsWith('blob:')) {
+      try { URL.revokeObjectURL(m.videoUrl); } catch(e) {}
+    }
+  });
   S.mediaFiles = [];
   S.tracks.forEach(t => { t.clips = []; });
   S.selectedMediaId = null;
@@ -7486,10 +7519,22 @@ function openExportModal(targetMediaId = null) {
   document.getElementById('export-modal').classList.remove('hidden');
 }
 
+function closeExportModal() {
+  const modal = document.getElementById('export-modal');
+  if (modal) modal.classList.add('hidden');
+  const au = document.getElementById('exp-preview-audio');
+  if (au) {
+    au.pause();
+    if (au.src && au.src.startsWith('blob:')) {
+      try { URL.revokeObjectURL(au.src); } catch(e) {}
+      au.src = '';
+    }
+  }
+}
+
 // Export modal
 document.getElementById('btn-export').addEventListener('click', () => openExportModal());
-document.getElementById('btn-exp-cancel').addEventListener('click', () =>
-  document.getElementById('export-modal').classList.add('hidden'));
+document.getElementById('btn-exp-cancel').addEventListener('click', closeExportModal);
 
 document.getElementById('btn-refresh-name').addEventListener('click', () => {
   const base = getSmartExportBaseName();
@@ -7523,9 +7568,12 @@ document.getElementById('btn-exp-preview').addEventListener('click', async () =>
   if (!res) return;
   _expBuf = res.rendered;
   const blob = new Blob([res.ab], { type: res.mime });
-  const url  = URL.createObjectURL(blob);
   const au   = document.getElementById('exp-preview-audio');
-  au.src = url;
+  if (au && au.src && au.src.startsWith('blob:')) {
+    try { URL.revokeObjectURL(au.src); } catch(e) {}
+  }
+  const url  = URL.createObjectURL(blob);
+  if (au) au.src = url;
   document.getElementById('exp-preview-wrap').style.display = '';
   status('Export preview ready — listen before saving');
 });
@@ -7547,7 +7595,7 @@ document.getElementById('btn-exp-save').addEventListener('click', async () => {
   const nextCandidate = incrementFilename(name);
   document.getElementById('exp-filename').value = nextCandidate;
 
-  document.getElementById('export-modal').classList.add('hidden');
+  closeExportModal();
   status(`✓ Exported "${fullName}" (never overwrites previous files)`);
 });
 
@@ -8780,7 +8828,7 @@ document.addEventListener('keydown', e => {
         closeTCEditModal();
         break;
       }
-      document.getElementById('export-modal')?.classList.add('hidden');
+      closeExportModal();
       document.getElementById('shortcuts-modal')?.classList.add('hidden');
       document.getElementById('tail-cleaner-modal')?.classList.add('hidden');
       break;
