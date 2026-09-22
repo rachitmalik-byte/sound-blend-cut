@@ -1,0 +1,25 @@
+{
+  "name": "IXR Audio Studio - Phonetics Lab",
+  "short_name": "IXR Studio",
+  "description": "Local offline audio workstation for acoustic glitch purging, phonetics lab, sound blending, and multitrack editing",
+  "start_url": "./IXR_Studio.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080c14",
+  "theme_color": "#080c14",
+  "categories": ["audio", "multimedia", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
