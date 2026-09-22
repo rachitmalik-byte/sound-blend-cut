@@ -4003,6 +4003,32 @@ function generateZipBlob(files) {
 // ─────────────────────────────────────────────────────────────────
 // BULK TAIL CLEANER & ANTI-POP GLITCH REMOVER ENGINE
 // ─────────────────────────────────────────────────────────────────
+function hasPitchPeriodicity(ch0, start, length, sr) {
+  if (length < 256 || start + length > ch0.length) return false;
+  const minLag = Math.floor(sr / 450); // ~450 Hz upper limit for fundamental vocal pitch
+  const maxLag = Math.floor(sr / 80);  // ~80 Hz lower limit for fundamental vocal pitch
+  if (length <= maxLag * 2) return false;
+
+  let maxCorr = 0;
+  let energy = 0;
+  for (let i = 0; i < length; i++) {
+    const v = ch0[start + i];
+    energy += v * v;
+  }
+  if (energy < 0.0001) return false;
+
+  for (let lag = minLag; lag <= maxLag; lag += 2) {
+    let corr = 0;
+    const n = length - lag;
+    for (let i = 0; i < n; i++) {
+      corr += ch0[start + i] * ch0[start + i + lag];
+    }
+    const normCorr = corr / energy;
+    if (normCorr > maxCorr) maxCorr = normCorr;
+  }
+  return maxCorr > 0.35;
+}
+
 function detectAcousticSoundEnd(buffer, options = {}) {
   const sr = buffer.sampleRate;
   const nc = buffer.numberOfChannels;
@@ -4063,14 +4089,14 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     };
   }
 
-  // Windowed RMS & Zero-Crossing Rate (ZCR) with 2ms frames and 1ms hop
-  const frameSamples = Math.max(16, Math.floor(0.002 * sr));
+  // 2. High-resolution Frame Analysis (4ms frame, 1ms hop)
+  const frameSamples = Math.max(16, Math.floor(0.004 * sr));
   const hopSamples = Math.max(8, Math.floor(0.001 * sr));
   const numFrames = Math.floor((len - frameSamples) / hopSamples);
 
   const rmsArr = new Float32Array(numFrames);
   const zcrArr = new Float32Array(numFrames);
-  let minRms = Infinity;
+  const sortedRms = [];
 
   for (let f = 0; f < numFrames; f++) {
     const start = f * hopSamples;
@@ -4089,59 +4115,101 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     const rms = Math.sqrt(sumSq / frameSamples);
     rmsArr[f] = rms;
     zcrArr[f] = zc / frameSamples;
-    if (rms > 0.00001 && rms < minRms) minRms = rms;
+    sortedRms.push(rms);
   }
 
-  const noiseFloor = minRms === Infinity ? 0.0005 : minRms;
+  sortedRms.sort((a, b) => a - b);
+  const noiseFloorIdx = Math.floor(sortedRms.length * 0.15);
+  const noiseFloor = sortedRms.length > 0 ? Math.max(0.00005, sortedRms[noiseFloorIdx]) : 0.0004;
 
-  // Determine Linear Threshold
-  let linearThresh;
+  // Adaptive Speech Threshold (tracks vocal decay down to natural acoustic boundary)
+  let speechThreshold;
   if (thresholdMode === 'auto' || thresholdMode === 'auto-detect') {
-    const fromPeak = peakAmp * Math.pow(10, -32 / 20); // -32 dB relative to peak
-    const fromNoise = noiseFloor * 2.8;               // +9 dB above noise floor
-    linearThresh = Math.max(fromPeak, fromNoise, peakAmp * 0.015, 0.0005);
+    speechThreshold = Math.max(noiseFloor * 2.4, peakAmp * 0.006, 0.0012);
   } else if (thresholdMode === 'tight' || +thresholdMode >= -26) {
     const db = typeof thresholdMode === 'number' ? thresholdMode : (+thresholdMode || -24);
-    linearThresh = Math.max(0.001, peakAmp * Math.pow(10, db / 20));
+    speechThreshold = Math.max(noiseFloor * 3.5, peakAmp * Math.pow(10, db / 20));
   } else if (thresholdMode === 'soft' || +thresholdMode <= -40) {
     const db = typeof thresholdMode === 'number' ? thresholdMode : (+thresholdMode || -40);
-    linearThresh = Math.max(0.0005, peakAmp * Math.pow(10, db / 20));
+    speechThreshold = Math.max(noiseFloor * 1.8, peakAmp * Math.pow(10, db / 20));
   } else {
     const db = +thresholdMode || -32;
-    linearThresh = Math.max(0.0008, peakAmp * Math.pow(10, db / 20));
+    speechThreshold = Math.max(noiseFloor * 2.2, peakAmp * Math.pow(10, db / 20));
   }
 
-  // PASS 1: Forward Decay Tracking from Peak
-  // Follows true vocal body decay forward from maximum energy, immune to trailing clicks
-  const peakFrame = Math.floor(peakIdx / hopSamples);
-  let speechEndFrame = peakFrame;
+  // 3. Cluster Active Energy into Segments
+  const clusters = [];
+  let inCluster = false;
+  let clusterStart = 0;
 
-  for (let f = peakFrame; f < numFrames; f++) {
+  for (let f = 0; f < numFrames; f++) {
     const rms = rmsArr[f];
     const zcr = zcrArr[f];
-    if (rms >= linearThresh || (zcr > 0.16 && rms >= linearThresh * 0.4)) {
-      speechEndFrame = f;
-    } else {
-      let sustainedSilence = true;
-      const lookahead = Math.min(numFrames, f + Math.floor(0.015 * sr / hopSamples)); // 15ms lookahead
-      for (let k = f; k < lookahead; k++) {
-        if (rmsArr[k] >= linearThresh * 1.2) {
-          sustainedSilence = false;
-          break;
-        }
+    const isActive = (rms >= speechThreshold) || (zcr > 0.15 && rms >= speechThreshold * 0.4);
+
+    if (isActive && !inCluster) {
+      inCluster = true;
+      clusterStart = f;
+    } else if (!isActive && inCluster) {
+      // Lookahead over momentary micro-dips (≤ 12ms)
+      let gapLen = 0;
+      const lookAhead = Math.min(numFrames, f + 12);
+      for (let k = f; k < lookAhead; k++) {
+        const kActive = (rmsArr[k] >= speechThreshold) || (zcrArr[k] > 0.15 && rmsArr[k] >= speechThreshold * 0.4);
+        if (kActive) break;
+        gapLen++;
       }
-      if (sustainedSilence) {
-        break;
-      } else {
-        speechEndFrame = f;
+      if (gapLen > 10 || f + gapLen >= numFrames) {
+        clusters.push({
+          startFrame: clusterStart,
+          endFrame: f,
+          durationMs: (f - clusterStart) * 1,
+          peakRms: Math.max(...rmsArr.slice(clusterStart, f))
+        });
+        inCluster = false;
       }
     }
   }
+  if (inCluster) {
+    clusters.push({
+      startFrame: clusterStart,
+      endFrame: numFrames,
+      durationMs: (numFrames - clusterStart) * 1,
+      peakRms: Math.max(...rmsArr.slice(clusterStart, numFrames))
+    });
+  }
 
-  const soundEndSample = Math.min(len, (speechEndFrame + 1) * hopSamples + frameSamples);
+  // 4. Classify Speech vs Glitch / Transient Artifacts
+  // Real speech: lasts ≥ 40ms, OR exhibits pitch periodicity, OR has peak energy ≥ 8% of peak
+  // Glitch: isolated transient burst < 30ms with no harmonic periodicity
+  const speechClusters = [];
+  const glitchClusters = [];
+
+  for (const c of clusters) {
+    const sampleStart = c.startFrame * hopSamples;
+    const sampleLen = (c.endFrame - c.startFrame) * hopSamples;
+    const hasPitch = hasPitchPeriodicity(ch0, sampleStart, sampleLen, sr);
+
+    if (c.durationMs >= 40 || hasPitch || (c.durationMs >= 20 && c.peakRms > peakAmp * 0.08)) {
+      speechClusters.push(c);
+    } else {
+      glitchClusters.push(c);
+    }
+  }
+
+  // 5. Locate True Sound End (end of last legitimate speech cluster)
+  let lastSpeechFrame;
+  if (speechClusters.length > 0) {
+    const lastCluster = speechClusters[speechClusters.length - 1];
+    lastSpeechFrame = lastCluster.endFrame;
+  } else {
+    lastSpeechFrame = Math.floor(peakIdx / hopSamples) + 20;
+  }
+
+  const soundEndSample = Math.min(len, lastSpeechFrame * hopSamples + frameSamples);
   const soundEndTimeSec = soundEndSample / sr;
 
-  // PASS 2: Trailing Transient Spike / Glitch Hunter
+  // 6. Trailing Glitch & Artifact Hunter (scans from soundEndSample to end)
   let firstGlitchSample = -1;
   let maxDerivative = 0;
   let tailPeak = 0;
@@ -4158,12 +4226,22 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     if (d > maxDerivative) maxDerivative = d;
 
     // Detect sudden step transitions or transient jumps in the post-decay region
-    if (firstGlitchSample === -1 && (d > 0.0035 || a > linearThresh * 1.15)) {
+    if (firstGlitchSample === -1 && (d > 0.0035 || a > speechThreshold * 1.2)) {
       firstGlitchSample = i;
     }
   }
 
-  // Adaptive Padding Margin Calculation
+  // Also include any glitch clusters detected in the tail
+  for (const g of glitchClusters) {
+    if (g.startFrame > lastSpeechFrame) {
+      const gSample = g.startFrame * hopSamples;
+      if (firstGlitchSample === -1 || gSample < firstGlitchSample) {
+        firstGlitchSample = gSample;
+      }
+    }
+  }
+
+  // 7. Adaptive Margin & Clamping
   let actualPadMs = 8;
   if (paddingMode === 'auto') {
     if (firstGlitchSample !== -1 && firstGlitchSample > soundEndSample) {
@@ -4241,6 +4319,8 @@ function detectAcousticSoundEnd(buffer, options = {}) {
     maxDerivative,
     firstGlitchSample,
     firstGlitchSec: firstGlitchSample !== -1 ? firstGlitchSample / sr : null,
+    speechClusters: speechClusters.length,
+    glitchClusters: glitchClusters.length,
     issue,
     peakAmp
   };
