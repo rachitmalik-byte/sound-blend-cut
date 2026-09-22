@@ -637,6 +637,7 @@ input[type=text], input[type=number] {
 }
 .tc-badge.glitch { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
 .tc-badge.clean  { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+.tc-badge.manual { background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); }
 .tc-audition-btn {
   background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-sm);
   color: var(--text-dim); font-size: 10px; padding: 3px 7px; cursor: pointer; transition: all 0.12s;
@@ -644,6 +645,8 @@ input[type=text], input[type=number] {
 }
 .tc-audition-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .tc-audition-btn.orig:hover { background: var(--amber); color: #000; border-color: var(--amber); }
+.tc-audition-btn.edit { border-color: rgba(99, 102, 241, 0.4); color: var(--accent); }
+.tc-audition-btn.edit:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* Processing overlay */
 #proc-overlay {
@@ -1206,7 +1209,7 @@ input[type=text], input[type=number] {
             <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Original</th>
             <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Cleaned</th>
             <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Sound Boundary & Glitch Cut</th>
-            <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Audition Ending</th>
+            <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Audition & Fine-Tune Ending</th>
             <th style="padding:6px 10px;text-align:right;color:var(--text-muted);font-weight:600">Action</th>
           </tr>
         </thead>
@@ -1221,19 +1224,130 @@ input[type=text], input[type=number] {
     </div>
 
     <!-- Export & Action Footer -->
-    <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:12px;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:11px;color:var(--text-dim);font-weight:600">Output Format:</span>
-        <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="mp3" checked> MP3 (192 kbps)</label>
-        <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="wav"> WAV (16-bit Lossless)</label>
-        <span id="tc-status-msg" style="font-size:11px;color:var(--text-muted);margin-left:8px">0 files loaded</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:12px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <!-- Output Format -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--text-dim);font-weight:600">Format:</span>
+          <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="mp3" checked> MP3</label>
+          <label style="font-size:11.5px;color:var(--text);cursor:pointer"><input type="radio" name="tc-fmt" value="wav"> WAV</label>
+        </div>
+
+        <!-- Export Filenames (Exact uploaded name by default!) -->
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--text-dim);font-weight:600">Export Names:</span>
+          <select id="tc-naming-mode" style="font-size:11px;padding:3px 7px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer" title="Choose how exported files are named">
+            <option value="exact" selected>Exact Uploaded Name ({name}.ext)</option>
+            <option value="suffix">Add Suffix ({name}_clean.ext)</option>
+            <option value="prefix">Add Prefix (clean_{name}.ext)</option>
+            <option value="custom">Custom Suffix...</option>
+          </select>
+          <input type="text" id="tc-naming-custom" placeholder="_clean" value="_clean" style="display:none;width:80px;font-size:11px;padding:2px 6px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm)">
+        </div>
+
+        <span id="tc-status-msg" style="font-size:11px;color:var(--text-muted)">0 files loaded</span>
       </div>
 
       <div style="display:flex;align-items:center;gap:8px">
         <button class="secondary sm" id="btn-tc-clear" title="Clear batch queue">Clear Queue</button>
         <button class="tool-action-btn" id="btn-tc-add-to-studio" title="Send all cleaned audio files directly to the studio timeline & library">➕ Add to Studio Timeline</button>
         <button class="secondary sm" id="btn-tc-download-seq" title="Download all files sequentially">⬇ Download All</button>
-        <button class="primary sm" id="btn-tc-download-zip" title="Package and download all cleaned files as a single ZIP">📦 Download ZIP</button>
+        <button class="primary sm" id="btn-tc-download-zip" title="Package and download all cleaned files as a single ZIP with exact uploaded names">📦 Download ZIP</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ON-THE-GO MANUAL TAIL TRIM & AUDITION MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="tc-edit-modal" class="modal-overlay hidden" style="z-index: 950">
+  <div class="modal" style="width: 700px; max-width: 95vw; padding: 20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:15px">✏️</span>
+        <h2 style="font-size:13.5px;margin:0;font-weight:700">Fine-Tune Ending: <span id="tc-edit-name" style="color:var(--accent)">audio</span></h2>
+      </div>
+      <button class="mi-btn" id="btn-tc-edit-close" title="Close without saving" style="font-size:13px">✕</button>
+    </div>
+
+    <!-- Diagnostic Metrics -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;margin-bottom:12px;font-size:11px;flex-wrap:wrap;gap:8px">
+      <div>Original Length: <span id="tc-edit-orig-dur" style="font-family:var(--font-mono);font-weight:600">0.000s</span></div>
+      <div>Cut Position: <span id="tc-edit-cut-pos" style="font-family:var(--font-mono);font-weight:700;color:var(--green)">0.000s</span></div>
+      <div>Tail Cut Away: <span id="tc-edit-cut-ms" style="font-family:var(--font-mono);font-weight:700;color:var(--accent)">-0ms</span></div>
+      <div id="tc-edit-glitch-badge" style="display:none"><span class="tc-badge glitch" id="tc-edit-glitch-text">Glitch at 0.00s</span></div>
+    </div>
+
+    <!-- Waveform Visualizer Canvas -->
+    <div style="position:relative;background:#0b0f19;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:12px">
+      <canvas id="tc-edit-canvas" width="660" height="130" style="width:100%;height:130px;display:block;cursor:ew-resize"></canvas>
+      <div style="position:absolute;bottom:4px;right:8px;font-size:9.5px;color:rgba(255,255,255,0.4);pointer-events:none">
+        Click or drag on waveform to adjust cut point
+      </div>
+    </div>
+
+    <!-- Cut Slider & Nudge Controls -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+          <span style="color:var(--text-dim);font-weight:600">Cut Location:</span>
+          <span id="tc-edit-slider-label" style="font-family:var(--font-mono);color:var(--accent);font-weight:700">0.000s</span>
+        </div>
+        <input type="range" id="tc-edit-slider" min="0" max="1000" step="1" value="500" style="width:100%;height:5px;cursor:pointer">
+      </div>
+
+      <!-- Quick Micro-Adjustment Stepper Buttons -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap">
+        <div style="display:flex;gap:3px">
+          <button class="ratio-btn" data-tc-step="-50" title="Cut 50ms earlier (remove more tail)">-50ms</button>
+          <button class="ratio-btn" data-tc-step="-10" title="Cut 10ms earlier">-10ms</button>
+          <button class="ratio-btn" data-tc-step="-2" title="Cut 2ms earlier (fine-tune away click)">-2ms</button>
+          <button class="ratio-btn" data-tc-step="-1" title="Cut 1ms earlier (micro step)">-1ms</button>
+        </div>
+        <div style="font-size:10.5px;color:var(--text-muted);font-weight:600">Nudge Cut Point</div>
+        <div style="display:flex;gap:3px">
+          <button class="ratio-btn" data-tc-step="1" title="Cut 1ms later (+1ms decay)">+1ms</button>
+          <button class="ratio-btn" data-tc-step="2" title="Cut 2ms later">+2ms</button>
+          <button class="ratio-btn" data-tc-step="10" title="Cut 10ms later">+10ms</button>
+          <button class="ratio-btn" data-tc-step="50" title="Cut 50ms later (+50ms decay)">+50ms</button>
+        </div>
+      </div>
+
+      <!-- S-Curve Micro Fade Selector -->
+      <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px">
+        <span style="font-size:11px;color:var(--text-dim)">Anti-Pop Fade Length:</span>
+        <div class="ratio-segmented" id="tc-edit-fade-presets">
+          <button class="ratio-btn" data-tc-efade="3">3ms</button>
+          <button class="ratio-btn" data-tc-efade="5">5ms</button>
+          <button class="ratio-btn active" data-tc-efade="8">8ms (S-Curve)</button>
+          <button class="ratio-btn" data-tc-efade="14">14ms</button>
+          <button class="ratio-btn" data-tc-efade="20">20ms</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Audition Box -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:11px;font-weight:600;color:var(--text)">Live Audition:</div>
+      <div style="display:flex;gap:8px">
+        <button class="tc-audition-btn orig" id="btn-tc-edit-hear-orig" style="padding:5px 12px;font-size:11px" title="Hear raw original ending with the glitch or dead air">
+          ▶ Hear Original End
+        </button>
+        <button class="tc-audition-btn" id="btn-tc-edit-hear-clean" style="padding:5px 14px;font-size:11px;background:var(--accent);color:#fff;font-weight:700;border-color:var(--accent)" title="Audition with your manual cut point and micro-fade">
+          ▶ Hear Clean Cut
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer Action Buttons with Apply Tick -->
+    <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:12px">
+      <button class="secondary sm" id="btn-tc-edit-reset" title="Reset to initial AI detected cut">↺ Reset to Auto Cut</button>
+      <div style="display:flex;gap:8px">
+        <button class="secondary sm" id="btn-tc-edit-cancel">Cancel</button>
+        <button class="primary sm" id="btn-tc-edit-apply" style="background:var(--green);border-color:var(--green);color:#000;font-weight:700" title="Save this fine-tuned ending to queue">
+          ✔ Apply & Update
+        </button>
       </div>
     </div>
   </div>
@@ -4381,6 +4495,7 @@ function cleanAudioTail(buffer, options = {}) {
 
   const {
     mode = 'smart',
+    manualCutSample = null,
     thresholdMode = 'auto',
     paddingMode = 'auto',
     trimMs = 25,
@@ -4390,7 +4505,9 @@ function cleanAudioTail(buffer, options = {}) {
   } = options;
 
   let cutPoint = len;
-  if (mode === 'smart') {
+  if (mode === 'manual' && typeof manualCutSample === 'number') {
+    cutPoint = Math.max(32, Math.min(len, manualCutSample));
+  } else if (mode === 'smart') {
     const det = detectAcousticSoundEnd(buffer, { thresholdMode, paddingMode, snapZero });
     cutPoint = det.cutSample;
   } else {
@@ -5343,7 +5460,11 @@ async function addFilesToTailCleaner(files) {
         cleanedBuffer: cleanedBuf,
         duration: origBuf.duration,
         cleanDuration: cleanedBuf.duration,
-        analysis
+        analysis,
+        isManuallyEdited: false,
+        autoCutSample: cleanedBuf.length,
+        manualCutSample: null,
+        fadeMs: TC_STATE.fadeMs
       });
       loaded++;
       showProc(`Loaded ${loaded}/${validFiles.length} files…`, Math.round(15 + (loaded / validFiles.length) * 80));
@@ -5357,6 +5478,40 @@ async function addFilesToTailCleaner(files) {
   updateTCStatus();
   status(`✓ Added ${loaded} audio file(s) to Tail Glitch Remover queue`);
 }
+
+function getTCExportFilename(item, fmt) {
+  const namingMode = document.getElementById('tc-naming-mode')?.value || 'exact';
+  const customSuffix = document.getElementById('tc-naming-custom')?.value || '';
+  const baseName = sanitizeFilename(item.name);
+  if (namingMode === 'exact') return `${baseName}.${fmt}`;
+  if (namingMode === 'suffix') return `${baseName}_clean.${fmt}`;
+  if (namingMode === 'prefix') return `clean_${baseName}.${fmt}`;
+  if (namingMode === 'custom') return `${baseName}${customSuffix}.${fmt}`;
+  return `${baseName}.${fmt}`;
+}
+
+function getUniqueZipFilename(baseFilename, usedNames) {
+  if (!usedNames.has(baseFilename)) {
+    usedNames.add(baseFilename);
+    return baseFilename;
+  }
+  const dotIdx = baseFilename.lastIndexOf('.');
+  const name = dotIdx !== -1 ? baseFilename.slice(0, dotIdx) : baseFilename;
+  const ext = dotIdx !== -1 ? baseFilename.slice(dotIdx) : '';
+  let count = 1;
+  while (usedNames.has(`${name}_${count}${ext}`)) {
+    count++;
+  }
+  const unique = `${name}_${count}${ext}`;
+  usedNames.add(unique);
+  return unique;
+}
+
+// Tail Cleaner Export Naming Mode Switcher
+document.getElementById('tc-naming-mode')?.addEventListener('change', e => {
+  const customInput = document.getElementById('tc-naming-custom');
+  if (customInput) customInput.style.display = e.target.value === 'custom' ? 'inline-block' : 'none';
+});
 
 function renderTCQueue() {
   const tbody = document.getElementById('tc-queue-tbody');
@@ -5377,24 +5532,26 @@ function renderTCQueue() {
   TC_STATE.queue.forEach((item) => {
     const tr = document.createElement('tr');
     tr.className = 'tc-queue-row';
-    const hasGlitch = (item.analysis.firstGlitchSample !== -1 || item.analysis.maxDerivative > 0.0035 || item.analysis.tailPeak > 0.01 || item.analysis.stepJump > 0.06);
-    const badgeClass = hasGlitch ? 'glitch' : 'clean';
-    const removedMs = item.analysis.removedMs !== undefined
+    const hasGlitch = (item.analysis?.firstGlitchSample !== -1 || item.analysis?.maxDerivative > 0.0035 || item.analysis?.tailPeak > 0.01 || item.analysis?.stepJump > 0.06);
+    const badgeClass = item.isManuallyEdited ? 'manual' : (hasGlitch ? 'glitch' : 'clean');
+    const removedMs = item.analysis?.removedMs !== undefined
       ? item.analysis.removedMs
       : Math.max(0, Math.round((item.duration - item.cleanDuration) * 1000));
     const removedLabel = removedMs > 0 ? `-${removedMs}ms` : '0ms';
+    const badgeLabel = item.isManuallyEdited ? `✏ Manual Cut (${removedLabel})` : (item.analysis?.issue || 'Clean Ending');
 
     tr.innerHTML = `
-      <td style="padding:7px 10px;font-weight:600;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.name}">${item.name}</td>
+      <td style="padding:7px 10px;font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.name}">${item.name}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--font-mono);color:var(--text-muted)">${item.duration.toFixed(3)}s</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--font-mono);color:var(--green);font-weight:600">${item.cleanDuration.toFixed(3)}s <span style="font-size:9.5px;color:var(--accent);opacity:0.9">(${removedLabel})</span></td>
       <td style="padding:7px 10px;text-align:center">
-        <span class="tc-badge ${badgeClass}" title="Tail cut analysis: ${item.analysis.issue}">${item.analysis.issue}</span>
+        <span class="tc-badge ${badgeClass}" title="Tail cut analysis: ${badgeLabel}">${badgeLabel}</span>
       </td>
       <td style="padding:7px 10px;text-align:center">
         <div style="display:inline-flex;gap:4px">
           <button class="tc-audition-btn orig" data-tc-orig="${item.id}" title="Hear the original ending with the glitch/dead air">▶ Orig End</button>
           <button class="tc-audition-btn" data-tc-clean="${item.id}" title="Hear the clean repaired ending">✓ Clean End</button>
+          <button class="tc-audition-btn edit" data-tc-edit="${item.id}" title="Fine-tune manual cut and micro-fade on visual waveform">✏ Edit</button>
         </div>
       </td>
       <td style="padding:7px 10px;text-align:right">
@@ -5441,13 +5598,21 @@ function renderTCQueue() {
     status(`✓ Auditioning clean ending of "${item.name}" (after-sound cut removed cleanly)`);
   }));
 
+  // Open Fine-Tune / Manual Trim Modal
+  tbody.querySelectorAll('[data-tc-edit]').forEach(b => b.addEventListener('click', e => {
+    const id = +e.currentTarget.dataset.tcEdit;
+    openTCEditModal(id);
+  }));
+
   // Single File Export
   tbody.querySelectorAll('[data-tc-exp]').forEach(b => b.addEventListener('click', async e => {
     const id = +e.currentTarget.dataset.tcExp;
     const item = TC_STATE.queue.find(x => x.id === id);
     if (!item) return;
     const fmt = document.querySelector('input[name="tc-fmt"]:checked')?.value || 'mp3';
-    await exportBufferDirectly(item.cleanedBuffer, `${item.name}_clean`, fmt);
+    const fullName = getTCExportFilename(item, fmt);
+    const baseWithoutExt = fullName.replace(/\.[^.]+$/, '');
+    await exportBufferDirectly(item.cleanedBuffer, baseWithoutExt, fmt);
   }));
 
   // Delete from Queue
@@ -5468,6 +5633,17 @@ function updateTCStatus() {
 
 function recomputeAllCleanedBuffers() {
   for (const item of TC_STATE.queue) {
+    if (item.isManuallyEdited) {
+      item.cleanedBuffer = cleanAudioTail(item.originalBuffer, {
+        mode: 'manual',
+        manualCutSample: item.manualCutSample,
+        fadeMs: item.fadeMs || TC_STATE.fadeMs,
+        snapZero: TC_STATE.snapZero,
+        removeDC: TC_STATE.removeDC
+      });
+      item.cleanDuration = item.cleanedBuffer.duration;
+      continue;
+    }
     if (TC_STATE.mode === 'smart') {
       item.analysis = detectAcousticSoundEnd(item.originalBuffer, {
         thresholdMode: TC_STATE.thresholdMode,
@@ -5487,6 +5663,7 @@ function recomputeAllCleanedBuffers() {
       removeDC: TC_STATE.removeDC
     });
     item.cleanDuration = item.cleanedBuffer.duration;
+    item.autoCutSample = item.cleanedBuffer.length;
   }
   renderTCQueue();
 }
@@ -5500,6 +5677,7 @@ document.getElementById('btn-tc-download-zip')?.addEventListener('click', async 
   await pause(20);
 
   const filesForZip = [];
+  const usedZipNames = new Set();
   let i = 0;
   for (const item of TC_STATE.queue) {
     i++;
@@ -5510,8 +5688,10 @@ document.getElementById('btn-tc-download-zip')?.addEventListener('click', async 
     } else {
       ab = encodeWAV(item.cleanedBuffer);
     }
+    const desiredFilename = getTCExportFilename(item, fmt);
+    const uniqueName = getUniqueZipFilename(desiredFilename, usedZipNames);
     filesForZip.push({
-      name: `${sanitizeFilename(item.name)}_clean.${fmt}`,
+      name: uniqueName,
       data: ab
     });
   }
@@ -5546,7 +5726,8 @@ document.getElementById('btn-tc-download-seq')?.addEventListener('click', async 
     let ab, mime;
     if (fmt === 'mp3') { ab = await encodeMp3(item.cleanedBuffer); mime = 'audio/mpeg'; }
     else              { ab = encodeWAV(item.cleanedBuffer); mime = 'audio/wav'; }
-    downloadBuf(ab, `${sanitizeFilename(item.name)}_clean.${fmt}`, mime);
+    const outFilename = getTCExportFilename(item, fmt);
+    downloadBuf(ab, outFilename, mime);
     await pause(250);
   }
   hideProc();
@@ -5746,6 +5927,398 @@ document.getElementById('btn-close-tail-cleaner')?.addEventListener('click', () 
 });
 
 // ─────────────────────────────────────────────────────────────────
+// ON-THE-GO MANUAL TAIL TRIM & AUDITION CONTROLLER
+// ─────────────────────────────────────────────────────────────────
+const TC_EDIT_STATE = {
+  item: null,
+  buffer: null,
+  sr: 44100,
+  viewStartSample: 0,
+  viewEndSample: 0,
+  cutSample: 0,
+  fadeMs: 8,
+  isDragging: false
+};
+
+function openTCEditModal(id) {
+  const item = TC_STATE.queue.find(x => x.id === id);
+  if (!item || !item.originalBuffer) return;
+  ensureCtx();
+
+  TC_EDIT_STATE.item = item;
+  TC_EDIT_STATE.buffer = item.originalBuffer;
+  TC_EDIT_STATE.sr = item.originalBuffer.sampleRate;
+  TC_EDIT_STATE.fadeMs = item.fadeMs || TC_STATE.fadeMs || 8;
+
+  const totalLen = item.originalBuffer.length;
+  // Current cut point (from previous manual edit or current cleaned buffer length)
+  const curCut = item.manualCutSample || item.cleanedBuffer.length || totalLen;
+  TC_EDIT_STATE.cutSample = Math.max(16, Math.min(totalLen, curCut));
+
+  // Determine focused viewport for millimeter precision (last ~1.5s or full file if shorter)
+  const windowSamples = Math.min(totalLen, Math.floor(TC_EDIT_STATE.sr * 1.5));
+  let vStart = Math.max(0, totalLen - windowSamples);
+  // Ensure the cut point is visible in viewport with margin
+  const minStartNeeded = Math.max(0, TC_EDIT_STATE.cutSample - Math.floor(TC_EDIT_STATE.sr * 0.8));
+  vStart = Math.min(vStart, minStartNeeded);
+  TC_EDIT_STATE.viewStartSample = vStart;
+  TC_EDIT_STATE.viewEndSample = totalLen;
+
+  // Header and diagnostics
+  const nameEl = document.getElementById('tc-edit-name');
+  if (nameEl) nameEl.textContent = item.name;
+  const origDurEl = document.getElementById('tc-edit-orig-dur');
+  if (origDurEl) origDurEl.textContent = `${item.duration.toFixed(3)}s`;
+
+  // Glitch diagnostic badge
+  const glitchBadge = document.getElementById('tc-edit-glitch-badge');
+  const glitchText = document.getElementById('tc-edit-glitch-text');
+  if (glitchBadge && glitchText) {
+    if (item.analysis?.firstGlitchSample && item.analysis.firstGlitchSample !== -1) {
+      const gSec = (item.analysis.firstGlitchSample / TC_EDIT_STATE.sr).toFixed(3);
+      glitchText.textContent = `Glitch at ${gSec}s (${item.analysis.issue})`;
+      glitchBadge.style.display = 'inline-block';
+    } else if (item.analysis?.soundEndTimeSec) {
+      glitchText.textContent = `Sound tail decay at ${item.analysis.soundEndTimeSec.toFixed(3)}s`;
+      glitchBadge.style.display = 'inline-block';
+    } else {
+      glitchBadge.style.display = 'none';
+    }
+  }
+
+  // Setup slider
+  const slider = document.getElementById('tc-edit-slider');
+  if (slider) {
+    slider.min = TC_EDIT_STATE.viewStartSample;
+    slider.max = TC_EDIT_STATE.viewEndSample;
+    slider.value = TC_EDIT_STATE.cutSample;
+  }
+
+  // Setup fade buttons active state
+  document.querySelectorAll('#tc-edit-fade-presets .ratio-btn').forEach(b => {
+    b.classList.toggle('active', +b.dataset.tcEfade === TC_EDIT_STATE.fadeMs);
+  });
+
+  updateTCEditLabels();
+  document.getElementById('tc-edit-modal')?.classList.remove('hidden');
+
+  // Redraw canvas on next tick when modal dimensions are resolved
+  requestAnimationFrame(() => {
+    renderTCEditCanvas();
+  });
+}
+
+function closeTCEditModal() {
+  stopPreview();
+  TC_EDIT_STATE.isDragging = false;
+  document.getElementById('tc-edit-modal')?.classList.add('hidden');
+}
+
+function updateTCEditLabels() {
+  const cutSec = (TC_EDIT_STATE.cutSample / TC_EDIT_STATE.sr).toFixed(3);
+  const removedMs = Math.max(0, Math.round(((TC_EDIT_STATE.buffer.length - TC_EDIT_STATE.cutSample) / TC_EDIT_STATE.sr) * 1000));
+
+  const cutPosEl = document.getElementById('tc-edit-cut-pos');
+  if (cutPosEl) cutPosEl.textContent = `${cutSec}s`;
+
+  const cutMsEl = document.getElementById('tc-edit-cut-ms');
+  if (cutMsEl) cutMsEl.textContent = `-${removedMs}ms`;
+
+  const sliderLabel = document.getElementById('tc-edit-slider-label');
+  if (sliderLabel) sliderLabel.textContent = `${cutSec}s (-${removedMs}ms tail removed)`;
+
+  const slider = document.getElementById('tc-edit-slider');
+  if (slider && +slider.value !== TC_EDIT_STATE.cutSample) {
+    slider.value = TC_EDIT_STATE.cutSample;
+  }
+}
+
+function renderTCEditCanvas() {
+  const canvas = document.getElementById('tc-edit-canvas');
+  if (!canvas || !TC_EDIT_STATE.buffer) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const width = rect.width || 660;
+  const height = rect.height || 130;
+
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+  }
+  ctx.save();
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, width, height);
+
+  const vStart = TC_EDIT_STATE.viewStartSample;
+  const vEnd = TC_EDIT_STATE.viewEndSample;
+  const vLen = Math.max(1, vEnd - vStart);
+  const sr = TC_EDIT_STATE.sr;
+  const midY = height / 2;
+  const ampScale = (height / 2) * 0.88;
+
+  // Time grid lines
+  const totalViewSec = vLen / sr;
+  const gridStepSec = totalViewSec > 1.2 ? 0.2 : 0.05;
+  const firstGridSec = Math.ceil((vStart / sr) / gridStepSec) * gridStepSec;
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+
+  for (let t = firstGridSec; t <= (vEnd / sr); t += gridStepSec) {
+    const s = t * sr;
+    const x = ((s - vStart) / vLen) * width;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+    ctx.fillText(`${t.toFixed(2)}s`, x, 11);
+  }
+
+  // Zero-amplitude baseline
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.beginPath();
+  ctx.moveTo(0, midY);
+  ctx.lineTo(width, midY);
+  ctx.stroke();
+
+  // Cut coordinate
+  const cutSample = TC_EDIT_STATE.cutSample;
+  const cutX = Math.max(0, Math.min(width, ((cutSample - vStart) / vLen) * width));
+
+  // Fade bracket
+  const fadeSamples = Math.floor((TC_EDIT_STATE.fadeMs / 1000) * sr);
+  const fadeStartX = Math.max(0, (((cutSample - fadeSamples) - vStart) / vLen) * width);
+
+  // Draw Waveform
+  const ch0 = TC_EDIT_STATE.buffer.getChannelData(0);
+  const ch1 = TC_EDIT_STATE.buffer.numberOfChannels > 1 ? TC_EDIT_STATE.buffer.getChannelData(1) : null;
+
+  for (let x = 0; x < width; x++) {
+    const s0 = Math.floor(vStart + (x / width) * vLen);
+    const s1 = Math.floor(vStart + ((x + 1) / width) * vLen);
+    let min = 0, max = 0;
+    for (let i = s0; i <= s1 && i < TC_EDIT_STATE.buffer.length; i++) {
+      let v = ch0[i];
+      if (ch1) v = 0.5 * (v + ch1[i]);
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    const yTop = midY - max * ampScale;
+    const yBot = midY - min * ampScale;
+    const barH = Math.max(1.5, yBot - yTop);
+
+    if (x <= cutX) {
+      ctx.fillStyle = '#00e5ff'; // Preserved audio
+    } else {
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.45)'; // Cut away
+    }
+    ctx.fillRect(x, yTop, 1, barH);
+  }
+
+  // Shaded trimmed zone
+  if (cutX < width) {
+    ctx.fillStyle = 'rgba(244, 63, 94, 0.12)';
+    ctx.fillRect(cutX, 0, width - cutX, height);
+  }
+
+  // Micro-fade bracket
+  if (fadeStartX < cutX) {
+    ctx.fillStyle = 'rgba(0, 229, 255, 0.20)';
+    ctx.fillRect(fadeStartX, 0, cutX - fadeStartX, height);
+
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.65)';
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(fadeStartX, 0);
+    ctx.lineTo(fadeStartX, height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Vertical Cut Line
+  ctx.strokeStyle = '#ff3366';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cutX, 0);
+  ctx.lineTo(cutX, height);
+  ctx.stroke();
+
+  // Top and bottom handles
+  ctx.fillStyle = '#ff3366';
+  ctx.beginPath();
+  ctx.moveTo(cutX - 6, 0);
+  ctx.lineTo(cutX + 6, 0);
+  ctx.lineTo(cutX, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cutX - 6, height);
+  ctx.lineTo(cutX + 6, height);
+  ctx.lineTo(cutX, height - 8);
+  ctx.closePath();
+  ctx.fill();
+
+  // Cut badge floating on canvas
+  const badgeW = 120, badgeH = 18;
+  const badgeX = Math.max(4, Math.min(width - badgeW - 4, cutX - badgeW / 2));
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+  ctx.fillRect(badgeX, height - badgeH - 4, badgeW, badgeH);
+  ctx.strokeStyle = '#ff3366';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(badgeX, height - badgeH - 4, badgeW, badgeH);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9.5px monospace';
+  ctx.textAlign = 'center';
+  const cutSec = (cutSample / sr).toFixed(3);
+  ctx.fillText(`Cut: ${cutSec}s`, badgeX + badgeW / 2, height - badgeH + 9);
+
+  ctx.restore();
+}
+
+// Canvas Mouse Dragging Handlers
+const tcEditCanvas = document.getElementById('tc-edit-canvas');
+function setCutFromCanvasEvent(e) {
+  if (!tcEditCanvas || !TC_EDIT_STATE.buffer) return;
+  const rect = tcEditCanvas.getBoundingClientRect();
+  const clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  const ratio = clickX / rect.width;
+  const vStart = TC_EDIT_STATE.viewStartSample;
+  const vEnd = TC_EDIT_STATE.viewEndSample;
+  const sample = Math.round(vStart + ratio * (vEnd - vStart));
+  TC_EDIT_STATE.cutSample = Math.max(16, Math.min(TC_EDIT_STATE.buffer.length, sample));
+  updateTCEditLabels();
+  renderTCEditCanvas();
+}
+
+tcEditCanvas?.addEventListener('mousedown', e => {
+  TC_EDIT_STATE.isDragging = true;
+  setCutFromCanvasEvent(e);
+});
+
+window.addEventListener('mousemove', e => {
+  if (!TC_EDIT_STATE.isDragging) return;
+  setCutFromCanvasEvent(e);
+});
+
+window.addEventListener('mouseup', () => {
+  if (TC_EDIT_STATE.isDragging) {
+    TC_EDIT_STATE.isDragging = false;
+  }
+});
+
+// Cut Slider Change
+document.getElementById('tc-edit-slider')?.addEventListener('input', e => {
+  TC_EDIT_STATE.cutSample = +e.target.value;
+  updateTCEditLabels();
+  renderTCEditCanvas();
+});
+
+// Nudge Step Buttons
+document.querySelectorAll('[data-tc-step]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!TC_EDIT_STATE.buffer) return;
+    const deltaMs = +btn.dataset.tcStep;
+    const deltaSamples = Math.round((deltaMs / 1000) * TC_EDIT_STATE.sr);
+    TC_EDIT_STATE.cutSample = Math.max(16, Math.min(TC_EDIT_STATE.buffer.length, TC_EDIT_STATE.cutSample + deltaSamples));
+    updateTCEditLabels();
+    renderTCEditCanvas();
+  });
+});
+
+// Anti-Pop Fade Presets
+document.getElementById('tc-edit-fade-presets')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-tc-efade]');
+  if (!btn) return;
+  TC_EDIT_STATE.fadeMs = +btn.dataset.tcEfade;
+  document.querySelectorAll('#tc-edit-fade-presets .ratio-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderTCEditCanvas();
+});
+
+// Audition Raw Original Ending
+document.getElementById('btn-tc-edit-hear-orig')?.addEventListener('click', () => {
+  if (!TC_EDIT_STATE.buffer) return;
+  ensureCtx();
+  const origDur = TC_EDIT_STATE.buffer.duration;
+  const cutSec = TC_EDIT_STATE.cutSample / TC_EDIT_STATE.sr;
+  const startSec = Math.max(0, cutSec - 0.35);
+  const playSec = Math.min(origDur - startSec, 0.60);
+  auditionBuffer(TC_EDIT_STATE.buffer, startSec, playSec);
+  status(`▶ Auditioning original tail transition of "${TC_EDIT_STATE.item?.name}"`);
+});
+
+// Audition Clean Manual Cut Ending
+document.getElementById('btn-tc-edit-hear-clean')?.addEventListener('click', () => {
+  if (!TC_EDIT_STATE.buffer) return;
+  ensureCtx();
+  const previewBuf = cleanAudioTail(TC_EDIT_STATE.buffer, {
+    mode: 'manual',
+    manualCutSample: TC_EDIT_STATE.cutSample,
+    fadeMs: TC_EDIT_STATE.fadeMs,
+    snapZero: TC_STATE.snapZero,
+    removeDC: TC_STATE.removeDC
+  });
+  const playSec = Math.min(0.40, previewBuf.duration);
+  const startSec = Math.max(0, previewBuf.duration - playSec);
+  auditionBuffer(previewBuf, startSec, playSec);
+  status(`✓ Auditioning clean manual cut with ${TC_EDIT_STATE.fadeMs}ms anti-pop fade`);
+});
+
+// Reset to Auto Detected Cut
+document.getElementById('btn-tc-edit-reset')?.addEventListener('click', () => {
+  if (!TC_EDIT_STATE.item) return;
+  const autoCut = TC_EDIT_STATE.item.autoCutSample || TC_EDIT_STATE.item.analysis?.cutSample || TC_EDIT_STATE.buffer.length;
+  TC_EDIT_STATE.cutSample = autoCut;
+  TC_EDIT_STATE.fadeMs = TC_STATE.fadeMs || 8;
+  document.querySelectorAll('#tc-edit-fade-presets .ratio-btn').forEach(b => {
+    b.classList.toggle('active', +b.dataset.tcEfade === TC_EDIT_STATE.fadeMs);
+  });
+  updateTCEditLabels();
+  renderTCEditCanvas();
+  status(`↺ Reset cut to initial auto-detected position (${(autoCut / TC_EDIT_STATE.sr).toFixed(3)}s)`);
+});
+
+// Apply & Update (Tick Button)
+document.getElementById('btn-tc-edit-apply')?.addEventListener('click', () => {
+  if (!TC_EDIT_STATE.item || !TC_EDIT_STATE.buffer) return;
+  ensureCtx();
+
+  const newCleaned = cleanAudioTail(TC_EDIT_STATE.item.originalBuffer, {
+    mode: 'manual',
+    manualCutSample: TC_EDIT_STATE.cutSample,
+    fadeMs: TC_EDIT_STATE.fadeMs,
+    snapZero: TC_STATE.snapZero,
+    removeDC: TC_STATE.removeDC
+  });
+
+  const removedMs = Math.max(0, Math.round((TC_EDIT_STATE.item.duration - newCleaned.duration) * 1000));
+
+  TC_EDIT_STATE.item.cleanedBuffer = newCleaned;
+  TC_EDIT_STATE.item.cleanDuration = newCleaned.duration;
+  TC_EDIT_STATE.item.manualCutSample = TC_EDIT_STATE.cutSample;
+  TC_EDIT_STATE.item.fadeMs = TC_EDIT_STATE.fadeMs;
+  TC_EDIT_STATE.item.isManuallyEdited = true;
+  if (!TC_EDIT_STATE.item.analysis) TC_EDIT_STATE.item.analysis = {};
+  TC_EDIT_STATE.item.analysis.issue = `Manual Cut (-${removedMs}ms)`;
+  TC_EDIT_STATE.item.analysis.removedMs = removedMs;
+
+  closeTCEditModal();
+  renderTCQueue();
+  status(`✓ Applied fine-tuned manual cut to "${TC_EDIT_STATE.item.name}" (-${removedMs}ms tail removed)`);
+});
+
+// Close / Cancel Buttons
+document.getElementById('btn-tc-edit-close')?.addEventListener('click', closeTCEditModal);
+document.getElementById('btn-tc-edit-cancel')?.addEventListener('click', closeTCEditModal);
+
+// ─────────────────────────────────────────────────────────────────
 // KEYBOARD SHORTCUTS
 // ─────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
@@ -5813,6 +6386,10 @@ document.addEventListener('keydown', e => {
       }
       break;
     case 'Escape':
+      if (!document.getElementById('tc-edit-modal')?.classList.contains('hidden')) {
+        closeTCEditModal();
+        break;
+      }
       document.getElementById('export-modal')?.classList.add('hidden');
       document.getElementById('shortcuts-modal')?.classList.add('hidden');
       document.getElementById('tail-cleaner-modal')?.classList.add('hidden');
