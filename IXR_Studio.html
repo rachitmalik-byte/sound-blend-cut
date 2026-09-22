@@ -1072,13 +1072,13 @@ input[type=text], input[type=number] {
      BULK TAIL CLEANER MODAL
 ══════════════════════════════════════════════════════════ -->
 <div class="modal-overlay hidden" id="tail-cleaner-modal">
-  <div class="modal" style="max-width:840px;width:94vw;max-height:90vh;display:flex;flex-direction:column;gap:12px;padding:20px">
+  <div class="modal" style="max-width:880px;width:95vw;max-height:92vh;display:flex;flex-direction:column;gap:12px;padding:20px">
     <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:22px">🧹</span>
         <div>
-          <h2 style="margin:0;font-size:15.5px">Bulk Audio Tail Cut & Glitch Remover</h2>
-          <span style="font-size:11px;color:var(--text-muted)">Excise cut/distort clicks, boundary pops, and codec glitches from the final milliseconds of multiple audio files in bulk</span>
+          <h2 style="margin:0;font-size:15.5px">Bulk Audio Sound-End & Tail Cut Glitch Remover</h2>
+          <span style="font-size:11px;color:var(--text-muted)">Identifies where spoken sound ends, keeps natural decay margin, and cleanly cuts away all trailing clicks, buzz & dead tail</span>
         </div>
       </div>
       <button class="secondary sm" id="btn-close-tail-cleaner" style="padding:2px 8px;font-size:13px">✕</button>
@@ -1090,54 +1090,100 @@ input[type=text], input[type=number] {
       <div id="tc-dropzone" style="border:2px dashed var(--border);border-radius:var(--radius-md);padding:18px;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg-card);transition:all 0.15s">
         <div style="font-size:26px;opacity:0.8">📥</div>
         <div style="font-size:12px;font-weight:600;color:var(--text)">Drop Audio Files Here or Click to Select</div>
-        <div style="font-size:10px;color:var(--text-muted)">WAV, MP3, M4A, FLAC, OGG, WebM · Multi-file batch support</div>
+        <div style="font-size:10px;color:var(--text-muted)">WAV, MP3, M4A, FLAC, OGG, WebM · Ingest 10, 50, or 100+ files</div>
         <input type="file" id="tc-file-input" multiple accept="audio/*,video/*" style="display:none">
       </div>
 
       <!-- DSP Cleaning Controls Card -->
       <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:10.5px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px">Tail Repair Parameters</span>
-          <span class="vp-highlight-pill" id="tc-preset-badge" style="font-size:9.5px">Anti-Pop Glitch Mode</span>
+          <span style="font-size:10.5px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px">Tail Repair Mode</span>
+          <span class="vp-highlight-pill" id="tc-preset-badge" style="font-size:9.5px;background:rgba(99,102,241,0.18);color:#818cf8;border:1px solid rgba(99,102,241,0.3)">🎯 Smart Sound-End Cut</span>
         </div>
 
-        <!-- Trim Amount Slider & Presets -->
-        <div>
-          <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
-            <span style="color:var(--text-dim)">Trim Tail Glitch:</span>
-            <span id="tc-trim-val" style="font-family:var(--font-mono);color:var(--accent);font-weight:600">25 ms</span>
+        <!-- Mode Toggle Segmented -->
+        <div class="ratio-segmented" id="tc-mode-selector" style="display:flex">
+          <button class="ratio-btn active" data-tc-mode="smart" style="flex:1;font-size:11px" title="Automatically finds where speech/audio ends and cuts off all trailing noise/clicks">🎯 Smart Sound-End Cut</button>
+          <button class="ratio-btn" data-tc-mode="fixed" style="flex:1;font-size:11px" title="Trims a fixed number of milliseconds off the very end of the file container">📏 Fixed Tail Trim</button>
+        </div>
+
+        <!-- Smart Mode Controls -->
+        <div id="tc-smart-controls" style="display:flex;flex-direction:column;gap:7px">
+          <!-- Release Padding ("Ends audio X ms later") -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+              <span style="color:var(--text);font-weight:500">End Audio After Sound:</span>
+              <span id="tc-padding-val" style="font-family:var(--font-mono);color:var(--accent);font-weight:700">10 ms</span>
+            </div>
+            <div style="font-size:9.5px;color:var(--text-muted);margin-bottom:2px">Leaves X ms of natural decay after speech ends, then cleanly cuts away all remaining clicks, buzz & dead tail</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="range" id="tc-padding-slider" min="0" max="100" step="1" value="10" style="flex:1;height:4px">
+            </div>
+            <div class="ratio-segmented" id="tc-padding-presets" style="margin-top:4px">
+              <button class="ratio-btn" data-tc-pad="2">2ms</button>
+              <button class="ratio-btn" data-tc-pad="5">5ms</button>
+              <button class="ratio-btn active" data-tc-pad="10">10ms</button>
+              <button class="ratio-btn" data-tc-pad="20">20ms</button>
+              <button class="ratio-btn" data-tc-pad="40">40ms</button>
+            </div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
-            <input type="range" id="tc-trim-slider" min="0" max="150" step="1" value="25" style="flex:1;height:4px">
-          </div>
-          <div class="ratio-segmented" id="tc-trim-presets" style="margin-top:4px">
-            <button class="ratio-btn" data-tc-trim="10">10ms</button>
-            <button class="ratio-btn active" data-tc-trim="25">25ms</button>
-            <button class="ratio-btn" data-tc-trim="50">50ms</button>
-            <button class="ratio-btn" data-tc-trim="80">80ms</button>
-            <button class="ratio-btn" data-tc-trim="auto">Auto-Detect</button>
+
+          <!-- Sound Detection Threshold -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+              <span style="color:var(--text-dim)">Speech / Sound Sensitivity:</span>
+              <span id="tc-thresh-val" style="font-family:var(--font-mono);color:var(--accent-cyan);font-weight:600">-34 dB</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
+              <input type="range" id="tc-thresh-slider" min="-50" max="-20" step="1" value="-34" style="flex:1;height:4px">
+            </div>
+            <div class="ratio-segmented" id="tc-thresh-presets" style="margin-top:4px">
+              <button class="ratio-btn" data-tc-thresh="-42">Soft Voice (-42dB)</button>
+              <button class="ratio-btn active" data-tc-thresh="-34">Standard (-34dB)</button>
+              <button class="ratio-btn" data-tc-thresh="-26">Tight Cut (-26dB)</button>
+            </div>
           </div>
         </div>
 
-        <!-- Fade Out Slider -->
-        <div>
-          <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
-            <span style="color:var(--text-dim)">Smooth Micro-Fade (S-Curve):</span>
-            <span id="tc-fade-val" style="font-family:var(--font-mono);color:var(--green);font-weight:600">12 ms</span>
+        <!-- Fixed Mode Controls (Hidden by default) -->
+        <div id="tc-fixed-controls" style="display:none;flex-direction:column;gap:7px">
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+              <span style="color:var(--text-dim)">Trim Container EOF:</span>
+              <span id="tc-trim-val" style="font-family:var(--font-mono);color:var(--accent);font-weight:600">25 ms</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
+              <input type="range" id="tc-trim-slider" min="0" max="150" step="1" value="25" style="flex:1;height:4px">
+            </div>
+            <div class="ratio-segmented" id="tc-trim-presets" style="margin-top:4px">
+              <button class="ratio-btn" data-tc-trim="10">10ms</button>
+              <button class="ratio-btn active" data-tc-trim="25">25ms</button>
+              <button class="ratio-btn" data-tc-trim="50">50ms</button>
+              <button class="ratio-btn" data-tc-trim="80">80ms</button>
+            </div>
           </div>
-          <input type="range" id="tc-fade-slider" min="2" max="40" step="1" value="12" style="width:100%;height:4px;margin-top:2px">
         </div>
 
-        <!-- Checkbox Options -->
-        <div style="display:flex;gap:12px;font-size:10.5px;color:var(--text-dim);flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-            <input type="checkbox" id="tc-snap-zero" checked>
-            <span>Snap to Zero-Crossing</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-            <input type="checkbox" id="tc-dc-offset" checked>
-            <span>Remove DC Bias Offset</span>
-          </label>
+        <!-- Shared Fade & Anti-Click Controls -->
+        <div style="border-top:1px solid var(--border);padding-top:6px;display:flex;flex-direction:column;gap:6px">
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px">
+              <span style="color:var(--text-dim)">Smooth Micro-Fade (S-Curve):</span>
+              <span id="tc-fade-val" style="font-family:var(--font-mono);color:var(--green);font-weight:600">8 ms</span>
+            </div>
+            <input type="range" id="tc-fade-slider" min="2" max="30" step="1" value="8" style="width:100%;height:4px;margin-top:2px">
+          </div>
+
+          <div style="display:flex;gap:12px;font-size:10.5px;color:var(--text-dim);flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" id="tc-snap-zero" checked>
+              <span>Snap to Zero-Crossing</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" id="tc-dc-offset" checked>
+              <span>Remove DC Bias Offset</span>
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -1150,8 +1196,8 @@ input[type=text], input[type=number] {
             <th style="padding:6px 10px;text-align:left;color:var(--text-muted);font-weight:600">File Name</th>
             <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Original</th>
             <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Cleaned</th>
-            <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Tail Glitch Analysis</th>
-            <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Audition Tail</th>
+            <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Sound Boundary & Glitch Cut</th>
+            <th style="padding:6px 10px;text-align:center;color:var(--text-muted);font-weight:600">Audition Ending</th>
             <th style="padding:6px 10px;text-align:right;color:var(--text-muted);font-weight:600">Action</th>
           </tr>
         </thead>
@@ -3956,6 +4002,149 @@ function generateZipBlob(files) {
 // ─────────────────────────────────────────────────────────────────
 // BULK TAIL CLEANER & ANTI-POP GLITCH REMOVER ENGINE
 // ─────────────────────────────────────────────────────────────────
+function detectAcousticSoundEnd(buffer, options = {}) {
+  const sr = buffer.sampleRate;
+  const nc = buffer.numberOfChannels;
+  const len = buffer.length;
+  if (len < 64) {
+    return {
+      soundEndSample: len,
+      soundEndTimeSec: len / sr,
+      cutSample: len,
+      cutTimeSec: len / sr,
+      removedMs: 0,
+      peakAmp: 0,
+      tailPeak: 0,
+      maxDerivative: 0,
+      issue: 'Clean'
+    };
+  }
+
+  const {
+    thresholdDb = -34,   // relative dB from peak (-50 to -20 dB)
+    paddingMs = 10,       // audio ends X ms later (0 to 100 ms)
+    snapZero = true
+  } = options;
+
+  const ch0 = buffer.getChannelData(0);
+  const ch1 = nc > 1 ? buffer.getChannelData(1) : null;
+
+  // 1. Find overall peak amplitude
+  let peakAmp = 0;
+  for (let i = 0; i < len; i++) {
+    const a0 = Math.abs(ch0[i]);
+    const a1 = ch1 ? Math.abs(ch1[i]) : 0;
+    const m = a0 > a1 ? a0 : a1;
+    if (m > peakAmp) peakAmp = m;
+  }
+
+  if (peakAmp < 0.0005) {
+    return {
+      soundEndSample: len,
+      soundEndTimeSec: len / sr,
+      cutSample: len,
+      cutTimeSec: len / sr,
+      removedMs: 0,
+      peakAmp,
+      tailPeak: 0,
+      maxDerivative: 0,
+      issue: 'Silent Audio'
+    };
+  }
+
+  // Linear amplitude threshold relative to peak (e.g. -34 dB -> peakAmp * 10^(-34/20))
+  const linearThresh = Math.max(0.0015, peakAmp * Math.pow(10, thresholdDb / 20));
+
+  // 2. Scan backwards using a short 2.5ms window with 1.25ms hop
+  const winSamples = Math.max(16, Math.floor((2.5 / 1000) * sr));
+  const hopSamples = Math.max(8, Math.floor(winSamples / 2));
+  let soundEndSample = len;
+
+  for (let i = len - winSamples; i >= 0; i -= hopSamples) {
+    let sumSq = 0;
+    let maxVal = 0;
+    for (let j = 0; j < winSamples; j++) {
+      const idx = i + j;
+      const v0 = Math.abs(ch0[idx]);
+      const v1 = ch1 ? Math.abs(ch1[idx]) : 0;
+      const v = v0 > v1 ? v0 : v1;
+      if (v > maxVal) maxVal = v;
+      sumSq += v * v;
+    }
+    const rms = Math.sqrt(sumSq / winSamples);
+
+    // If RMS exceeds threshold or peak in window exceeds 1.35x threshold, this is part of active sound!
+    if (rms >= linearThresh || maxVal >= linearThresh * 1.35) {
+      soundEndSample = Math.min(len, i + winSamples);
+      break;
+    }
+  }
+
+  // 3. Add release padding ("ends the audio a millisecond later so after cut sound is removed")
+  const padSamples = Math.floor((Math.max(0, paddingMs) / 1000) * sr);
+  let cutSample = Math.min(len, soundEndSample + padSamples);
+
+  // 4. Snap to nearest zero-crossing around cutSample
+  if (snapZero && cutSample > 16) {
+    const zeroWin = Math.min(Math.floor(sr * 0.003), 128);
+    let bestZero = cutSample;
+    let minDiff = Infinity;
+    const startS = Math.max(1, cutSample - zeroWin);
+    const endS = Math.min(len - 1, cutSample + zeroWin);
+    for (let i = startS; i < endS; i++) {
+      if ((ch0[i] >= 0 && ch0[i + 1] < 0) || (ch0[i] < 0 && ch0[i + 1] >= 0)) {
+        if (Math.abs(ch0[i]) < minDiff) {
+          minDiff = Math.abs(ch0[i]);
+          bestZero = i;
+        }
+      }
+    }
+    cutSample = bestZero;
+  }
+
+  cutSample = Math.max(32, Math.min(len, cutSample));
+
+  const soundEndTimeSec = soundEndSample / sr;
+  const cutTimeSec = cutSample / sr;
+  const removedMs = Math.round(((len - cutSample) / sr) * 1000);
+
+  // Analyze if there is a glitch / click / spike in the excised tail
+  let tailPeak = 0;
+  let maxDerivative = 0;
+  const tailStart = Math.min(len - 1, cutSample);
+  for (let i = tailStart; i < len - 1; i++) {
+    const a = Math.abs(ch0[i]);
+    if (a > tailPeak) tailPeak = a;
+    const d = Math.abs(ch0[i + 1] - ch0[i]);
+    if (d > maxDerivative) maxDerivative = d;
+  }
+
+  let issue = '';
+  if (removedMs > 40) {
+    if (maxDerivative > 0.012 || tailPeak > 0.01) {
+      issue = `✂ Cut ${removedMs}ms (Glitch Removed)`;
+    } else {
+      issue = `✂ Cut ${removedMs}ms Dead Tail`;
+    }
+  } else if (removedMs > 0) {
+    issue = `✂ Cut ${removedMs}ms Tail`;
+  } else {
+    issue = `✓ Full Sound Preserved`;
+  }
+
+  return {
+    soundEndSample,
+    soundEndTimeSec,
+    cutSample,
+    cutTimeSec,
+    removedMs,
+    tailPeak,
+    maxDerivative,
+    issue,
+    peakAmp
+  };
+}
+
 function detectTailGlitch(buffer, searchMs = 150) {
   const sr = buffer.sampleRate;
   const len = buffer.length;
@@ -4001,76 +4190,63 @@ function cleanAudioTail(buffer, options = {}) {
   if (len < 64) return buffer;
 
   const {
+    mode = 'smart',
+    thresholdDb = -34,
+    paddingMs = 10,
     trimMs = 25,
-    fadeMs = 12,
+    fadeMs = 8,
     snapZero = true,
-    removeDC = true,
-    autoDetect = false,
+    removeDC = true
   } = options;
 
-  let actualTrimMs = trimMs;
-  if (autoDetect || trimMs === 'auto') {
-    const analysis = detectTailGlitch(buffer);
-    actualTrimMs = analysis.suggestedTrimMs;
+  let cutPoint = len;
+  if (mode === 'smart') {
+    const det = detectAcousticSoundEnd(buffer, { thresholdDb, paddingMs, snapZero });
+    cutPoint = det.cutSample;
   } else {
-    actualTrimMs = Math.max(0, +trimMs || 0);
-  }
+    const tMs = Math.max(0, +trimMs || 0);
+    const trimSamples = Math.floor((tMs / 1000) * sr);
+    cutPoint = Math.max(32, len - Math.min(len - 32, trimSamples));
 
-  let trimSamples = Math.floor((actualTrimMs / 1000) * sr);
-  trimSamples = Math.max(0, Math.min(len - 32, trimSamples));
-  let cutPoint = len - trimSamples;
-
-  const ch0 = buffer.getChannelData(0);
-
-  // DC offset removal
-  let dcOffset = 0;
-  if (removeDC) {
-    let sum = 0;
-    const stride = Math.max(1, Math.floor(len / 4000));
-    let cnt = 0;
-    for (let i = 0; i < len; i += stride) {
-      sum += ch0[i];
-      cnt++;
-    }
-    dcOffset = sum / (cnt || 1);
-    if (Math.abs(dcOffset) < 0.0005) dcOffset = 0;
-  }
-
-  // Snap to nearest zero-crossing around cutPoint
-  if (snapZero && cutPoint > 16) {
-    const searchWin = Math.min(Math.floor(sr * 0.0035), Math.floor(cutPoint * 0.2));
-    let bestIdx = cutPoint;
-    let minAmp = Infinity;
-    const searchStart = Math.max(1, cutPoint - searchWin);
-    const searchEnd = Math.min(len - 2, cutPoint + searchWin);
-
-    for (let i = searchStart; i <= searchEnd; i++) {
-      const v1 = ch0[i] - dcOffset;
-      const v2 = ch0[i + 1] - dcOffset;
-      if ((v1 >= 0 && v2 < 0) || (v1 < 0 && v2 >= 0)) {
-        const amp = Math.abs(v1);
-        if (amp < minAmp) {
-          minAmp = amp;
-          bestIdx = i;
-        }
-      }
-    }
-    if (minAmp === Infinity) {
+    if (snapZero && cutPoint > 16) {
+      const searchWin = Math.min(Math.floor(sr * 0.0035), 128);
+      let bestIdx = cutPoint;
+      let minAmp = Infinity;
+      const ch0 = buffer.getChannelData(0);
+      const searchStart = Math.max(1, cutPoint - searchWin);
+      const searchEnd = Math.min(len - 2, cutPoint + searchWin);
       for (let i = searchStart; i <= searchEnd; i++) {
-        const amp = Math.abs(ch0[i] - dcOffset);
-        if (amp < minAmp) {
-          minAmp = amp;
-          bestIdx = i;
+        const v1 = ch0[i];
+        const v2 = ch0[i + 1];
+        if ((v1 >= 0 && v2 < 0) || (v1 < 0 && v2 >= 0)) {
+          if (Math.abs(v1) < minAmp) {
+            minAmp = Math.abs(v1);
+            bestIdx = i;
+          }
         }
       }
+      cutPoint = bestIdx;
     }
-    cutPoint = bestIdx;
   }
 
   cutPoint = Math.max(16, Math.min(len, cutPoint));
 
+  // DC offset removal
+  let dcOffset = 0;
+  if (removeDC) {
+    const ch0 = buffer.getChannelData(0);
+    let sum = 0, cnt = 0;
+    const stride = Math.max(1, Math.floor(cutPoint / 3000));
+    for (let i = 0; i < cutPoint; i += stride) {
+      sum += ch0[i];
+      cnt++;
+    }
+    dcOffset = sum / (cnt || 1);
+    if (Math.abs(dcOffset) < 0.0004) dcOffset = 0;
+  }
+
   // Raised-cosine S-curve micro-fade to mathematical 0.000000
-  const actualFadeMs = Math.max(2, +fadeMs || 12);
+  const actualFadeMs = Math.max(2, +fadeMs || 8);
   const fadeSamples = Math.min(cutPoint - 1, Math.max(8, Math.floor((actualFadeMs / 1000) * sr)));
   const fadeStart = cutPoint - fadeSamples;
 
@@ -4085,7 +4261,7 @@ function cleanAudioTail(buffer, options = {}) {
     }
 
     for (let i = 0; i < fadeSamples; i++) {
-      const t = i / fadeSamples;
+      const t = i / (fadeSamples - 1 || 1);
       const w = 0.5 * (1 + Math.cos(Math.PI * t));
       dst[fadeStart + i] = (src[fadeStart + i] - dcOffset) * w;
     }
@@ -4099,11 +4275,13 @@ function cleanAudioTail(buffer, options = {}) {
 const TC_STATE = {
   queue: [],
   nextId: 1,
-  trimMs: 25,
-  fadeMs: 12,
-  snapZero: true,
-  removeDC: true,
-  autoDetect: false,
+  mode: 'smart',         // 'smart' (detect sound end) or 'fixed' (trim EOF)
+  thresholdDb: -34,      // -50 to -20 dB
+  paddingMs: 10,         // audio ends X ms later (0 to 100 ms)
+  trimMs: 25,            // fixed mode trim (0 to 150 ms)
+  fadeMs: 8,             // S-curve micro fade (2 to 30 ms)
+  snapZero: true,        // snap to zero crossing
+  removeDC: true,        // eliminate DC bias
 };
 // TIMELINE MOUSE INTERACTIONS
 // ─────────────────────────────────────────────────────────────────
@@ -4930,14 +5108,26 @@ async function addFilesToTailCleaner(files) {
     try {
       const ab = await file.arrayBuffer();
       const origBuf = await actx.decodeAudioData(ab.slice(0));
-      const analysis = detectTailGlitch(origBuf);
+
+      let analysis;
+      if (TC_STATE.mode === 'smart') {
+        analysis = detectAcousticSoundEnd(origBuf, {
+          thresholdDb: TC_STATE.thresholdDb,
+          paddingMs: TC_STATE.paddingMs,
+          snapZero: TC_STATE.snapZero
+        });
+      } else {
+        analysis = detectTailGlitch(origBuf);
+      }
 
       const cleanedBuf = cleanAudioTail(origBuf, {
+        mode: TC_STATE.mode,
+        thresholdDb: TC_STATE.thresholdDb,
+        paddingMs: TC_STATE.paddingMs,
         trimMs: TC_STATE.trimMs,
         fadeMs: TC_STATE.fadeMs,
         snapZero: TC_STATE.snapZero,
-        removeDC: TC_STATE.removeDC,
-        autoDetect: TC_STATE.autoDetect
+        removeDC: TC_STATE.removeDC
       });
 
       TC_STATE.queue.push({
@@ -4960,7 +5150,7 @@ async function addFilesToTailCleaner(files) {
   hideProc();
   renderTCQueue();
   updateTCStatus();
-  status(`✓ Added ${loaded} audio file(s) to Bulk Tail Cleaner queue`);
+  status(`✓ Added ${loaded} audio file(s) to Tail Glitch Remover queue`);
 }
 
 function renderTCQueue() {
@@ -4982,20 +5172,24 @@ function renderTCQueue() {
   TC_STATE.queue.forEach((item) => {
     const tr = document.createElement('tr');
     tr.className = 'tc-queue-row';
-    const hasGlitch = item.analysis.stepJump > 0.08 || item.analysis.maxDerivative > 0.25;
+    const hasGlitch = (item.analysis.maxDerivative > 0.012 || item.analysis.tailPeak > 0.01 || item.analysis.stepJump > 0.06);
     const badgeClass = hasGlitch ? 'glitch' : 'clean';
+    const removedMs = item.analysis.removedMs !== undefined
+      ? item.analysis.removedMs
+      : Math.max(0, Math.round((item.duration - item.cleanDuration) * 1000));
+    const removedLabel = removedMs > 0 ? `-${removedMs}ms` : '0ms';
 
     tr.innerHTML = `
       <td style="padding:7px 10px;font-weight:600;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${item.name}">${item.name}</td>
       <td style="padding:7px 10px;text-align:center;font-family:var(--font-mono);color:var(--text-muted)">${item.duration.toFixed(3)}s</td>
-      <td style="padding:7px 10px;text-align:center;font-family:var(--font-mono);color:var(--green)">${item.cleanDuration.toFixed(3)}s</td>
+      <td style="padding:7px 10px;text-align:center;font-family:var(--font-mono);color:var(--green);font-weight:600">${item.cleanDuration.toFixed(3)}s <span style="font-size:9.5px;color:var(--accent);opacity:0.9">(${removedLabel})</span></td>
       <td style="padding:7px 10px;text-align:center">
-        <span class="tc-badge ${badgeClass}">${item.analysis.issue}</span>
+        <span class="tc-badge ${badgeClass}" title="Tail cut analysis: ${item.analysis.issue}">${item.analysis.issue}</span>
       </td>
       <td style="padding:7px 10px;text-align:center">
         <div style="display:inline-flex;gap:4px">
-          <button class="tc-audition-btn orig" data-tc-orig="${item.id}" title="Hear the original ending with the glitch">▶ Orig Tail</button>
-          <button class="tc-audition-btn" data-tc-clean="${item.id}" title="Hear the clean repaired ending">✓ Clean Tail</button>
+          <button class="tc-audition-btn orig" data-tc-orig="${item.id}" title="Hear the original ending with the glitch/dead air">▶ Orig End</button>
+          <button class="tc-audition-btn" data-tc-clean="${item.id}" title="Hear the clean repaired ending">✓ Clean End</button>
         </div>
       </td>
       <td style="padding:7px 10px;text-align:right">
@@ -5008,28 +5202,38 @@ function renderTCQueue() {
     tbody.appendChild(tr);
   });
 
-  // Audition Original Tail (last 350ms)
+  // Audition Original Ending (spans from 250ms before sound end into the original glitch/tail)
   tbody.querySelectorAll('[data-tc-orig]').forEach(b => b.addEventListener('click', e => {
     const id = +e.currentTarget.dataset.tcOrig;
     const item = TC_STATE.queue.find(x => x.id === id);
     if (!item) return;
     ensureCtx();
-    const dur = item.originalBuffer.duration;
-    const tailSec = Math.min(0.35, dur);
-    auditionBuffer(item.originalBuffer, Math.max(0, dur - tailSec), tailSec);
-    status(`▶ Auditioning original tail of "${item.name}" (last ${Math.round(tailSec*1000)}ms)`);
+    const origDur = item.originalBuffer.duration;
+    let startSec = 0;
+    let playSec = 0.4;
+    if (TC_STATE.mode === 'smart' && item.analysis?.soundEndTimeSec) {
+      startSec = Math.max(0, item.analysis.soundEndTimeSec - 0.25);
+      playSec = Math.min(origDur - startSec, 0.50);
+    } else {
+      const tailSec = Math.min(0.35, origDur);
+      startSec = Math.max(0, origDur - tailSec);
+      playSec = tailSec;
+    }
+    auditionBuffer(item.originalBuffer, startSec, playSec);
+    status(`▶ Auditioning original transition of "${item.name}" (glitch/tail at ${startSec.toFixed(2)}s)`);
   }));
 
-  // Audition Cleaned Tail
+  // Audition Cleaned Ending
   tbody.querySelectorAll('[data-tc-clean]').forEach(b => b.addEventListener('click', e => {
     const id = +e.currentTarget.dataset.tcClean;
     const item = TC_STATE.queue.find(x => x.id === id);
     if (!item) return;
     ensureCtx();
-    const dur = item.cleanedBuffer.duration;
-    const tailSec = Math.min(0.35, dur);
-    auditionBuffer(item.cleanedBuffer, Math.max(0, dur - tailSec), tailSec);
-    status(`✓ Auditioning cleaned tail of "${item.name}" (repaired with smooth S-curve)`);
+    const cleanDur = item.cleanedBuffer.duration;
+    const playSec = Math.min(0.35, cleanDur);
+    const startSec = Math.max(0, cleanDur - playSec);
+    auditionBuffer(item.cleanedBuffer, startSec, playSec);
+    status(`✓ Auditioning clean ending of "${item.name}" (after-sound cut removed cleanly)`);
   }));
 
   // Single File Export
@@ -5059,12 +5263,23 @@ function updateTCStatus() {
 
 function recomputeAllCleanedBuffers() {
   for (const item of TC_STATE.queue) {
+    if (TC_STATE.mode === 'smart') {
+      item.analysis = detectAcousticSoundEnd(item.originalBuffer, {
+        thresholdDb: TC_STATE.thresholdDb,
+        paddingMs: TC_STATE.paddingMs,
+        snapZero: TC_STATE.snapZero
+      });
+    } else {
+      item.analysis = detectTailGlitch(item.originalBuffer);
+    }
     item.cleanedBuffer = cleanAudioTail(item.originalBuffer, {
+      mode: TC_STATE.mode,
+      thresholdDb: TC_STATE.thresholdDb,
+      paddingMs: TC_STATE.paddingMs,
       trimMs: TC_STATE.trimMs,
       fadeMs: TC_STATE.fadeMs,
       snapZero: TC_STATE.snapZero,
-      removeDC: TC_STATE.removeDC,
-      autoDetect: TC_STATE.autoDetect
+      removeDC: TC_STATE.removeDC
     });
     item.cleanDuration = item.cleanedBuffer.duration;
   }
@@ -5195,12 +5410,74 @@ tcDropzone?.addEventListener('drop', e => {
   }
 });
 
-// Parameter Controls
+// Mode Switcher Buttons
+document.querySelectorAll('#tc-mode-selector .ratio-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.tcMode;
+    TC_STATE.mode = mode;
+    document.querySelectorAll('#tc-mode-selector .ratio-btn').forEach(b => b.classList.toggle('active', b === btn));
+    const isSmart = mode === 'smart';
+    const smartEl = document.getElementById('tc-smart-controls');
+    const fixedEl = document.getElementById('tc-fixed-controls');
+    if (smartEl) smartEl.style.display = isSmart ? 'flex' : 'none';
+    if (fixedEl) fixedEl.style.display = isSmart ? 'none' : 'flex';
+    const badge = document.getElementById('tc-preset-badge');
+    if (badge) {
+      badge.textContent = isSmart ? '🎯 Smart Sound-End Cut' : '📏 Fixed Tail Trim';
+    }
+    recomputeAllCleanedBuffers();
+  });
+});
+
+// Smart Padding Controls ("Ends audio X ms later")
+const tcPaddingSlider = document.getElementById('tc-padding-slider');
+const tcPaddingVal = document.getElementById('tc-padding-val');
+tcPaddingSlider?.addEventListener('input', e => {
+  TC_STATE.paddingMs = +e.target.value;
+  if (tcPaddingVal) tcPaddingVal.textContent = `${TC_STATE.paddingMs} ms`;
+  document.querySelectorAll('#tc-padding-presets .ratio-btn').forEach(b => {
+    b.classList.toggle('active', +b.dataset.tcPad === TC_STATE.paddingMs);
+  });
+  recomputeAllCleanedBuffers();
+});
+
+document.getElementById('tc-padding-presets')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-tc-pad]');
+  if (!btn) return;
+  TC_STATE.paddingMs = +btn.dataset.tcPad;
+  if (tcPaddingSlider) tcPaddingSlider.value = TC_STATE.paddingMs;
+  if (tcPaddingVal) tcPaddingVal.textContent = `${TC_STATE.paddingMs} ms`;
+  document.querySelectorAll('#tc-padding-presets .ratio-btn').forEach(b => b.classList.toggle('active', b === btn));
+  recomputeAllCleanedBuffers();
+});
+
+// Smart Threshold Controls
+const tcThreshSlider = document.getElementById('tc-thresh-slider');
+const tcThreshVal = document.getElementById('tc-thresh-val');
+tcThreshSlider?.addEventListener('input', e => {
+  TC_STATE.thresholdDb = +e.target.value;
+  if (tcThreshVal) tcThreshVal.textContent = `${TC_STATE.thresholdDb} dB`;
+  document.querySelectorAll('#tc-thresh-presets .ratio-btn').forEach(b => {
+    b.classList.toggle('active', +b.dataset.tcThresh === TC_STATE.thresholdDb);
+  });
+  recomputeAllCleanedBuffers();
+});
+
+document.getElementById('tc-thresh-presets')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-tc-thresh]');
+  if (!btn) return;
+  TC_STATE.thresholdDb = +btn.dataset.tcThresh;
+  if (tcThreshSlider) tcThreshSlider.value = TC_STATE.thresholdDb;
+  if (tcThreshVal) tcThreshVal.textContent = `${TC_STATE.thresholdDb} dB`;
+  document.querySelectorAll('#tc-thresh-presets .ratio-btn').forEach(b => b.classList.toggle('active', b === btn));
+  recomputeAllCleanedBuffers();
+});
+
+// Fixed Mode Trim Controls
 const tcTrimSlider = document.getElementById('tc-trim-slider');
 const tcTrimVal = document.getElementById('tc-trim-val');
 tcTrimSlider?.addEventListener('input', e => {
   TC_STATE.trimMs = +e.target.value;
-  TC_STATE.autoDetect = false;
   if (tcTrimVal) tcTrimVal.textContent = `${TC_STATE.trimMs} ms`;
   document.querySelectorAll('#tc-trim-presets .ratio-btn').forEach(b => {
     b.classList.toggle('active', +b.dataset.tcTrim === TC_STATE.trimMs);
@@ -5211,21 +5488,14 @@ tcTrimSlider?.addEventListener('input', e => {
 document.getElementById('tc-trim-presets')?.addEventListener('click', e => {
   const btn = e.target.closest('[data-tc-trim]');
   if (!btn) return;
-  const val = btn.dataset.tcTrim;
+  TC_STATE.trimMs = +btn.dataset.tcTrim;
+  if (tcTrimSlider) tcTrimSlider.value = TC_STATE.trimMs;
+  if (tcTrimVal) tcTrimVal.textContent = `${TC_STATE.trimMs} ms`;
   document.querySelectorAll('#tc-trim-presets .ratio-btn').forEach(b => b.classList.toggle('active', b === btn));
-  if (val === 'auto') {
-    TC_STATE.autoDetect = true;
-    TC_STATE.trimMs = 'auto';
-    if (tcTrimVal) tcTrimVal.textContent = 'Auto-Detect';
-  } else {
-    TC_STATE.autoDetect = false;
-    TC_STATE.trimMs = +val;
-    if (tcTrimSlider) tcTrimSlider.value = TC_STATE.trimMs;
-    if (tcTrimVal) tcTrimVal.textContent = `${TC_STATE.trimMs} ms`;
-  }
   recomputeAllCleanedBuffers();
 });
 
+// Fade Slider
 const tcFadeSlider = document.getElementById('tc-fade-slider');
 const tcFadeVal = document.getElementById('tc-fade-val');
 tcFadeSlider?.addEventListener('input', e => {
@@ -5234,6 +5504,7 @@ tcFadeSlider?.addEventListener('input', e => {
   recomputeAllCleanedBuffers();
 });
 
+// Checkboxes
 document.getElementById('tc-snap-zero')?.addEventListener('change', e => {
   TC_STATE.snapZero = e.target.checked;
   recomputeAllCleanedBuffers();
