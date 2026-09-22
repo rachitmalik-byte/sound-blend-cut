@@ -228,6 +228,11 @@ html, body {
   font-size: 9.5px; font-weight: 600; padding: 1px 6px; border-radius: var(--radius-full);
 }
 #media-list { flex: 1; overflow-y: auto; padding: 8px; }
+#btn-clear-media:hover {
+  border-color: var(--red) !important;
+  color: var(--red) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+}
 
 /* Empty state */
 .ml-empty {
@@ -715,7 +720,10 @@ input[type=text], input[type=number] {
         <span class="ml-title">Media</span>
         <span class="badge-count" id="media-count-badge">0</span>
       </div>
-      <button class="primary sm" id="btn-import">+ Import</button>
+      <div style="display:flex;gap:5px;align-items:center">
+        <button class="sm" id="btn-clear-media" title="Clear all media from project (Ctrl+Z to undo)" style="display:none;padding:2px 7px;font-size:10.5px;background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s">Clear All</button>
+        <button class="primary sm" id="btn-import">+ Import</button>
+      </div>
     </div>
     <div id="media-list"></div>
     <input type="file" id="file-input" multiple accept="audio/*,video/*" style="display:none">
@@ -2597,7 +2605,9 @@ function addTrack(name) {
 function renderMediaLibrary() {
   const list = document.getElementById('media-list');
   const countBadge = document.getElementById('media-count-badge');
+  const clearBtn = document.getElementById('btn-clear-media');
   if (countBadge) countBadge.textContent = S.mediaFiles.length;
+  if (clearBtn) clearBtn.style.display = S.mediaFiles.length > 0 ? 'inline-block' : 'none';
 
   list.innerHTML = '';
   if (S.mediaFiles.length === 0) {
@@ -2638,7 +2648,7 @@ function renderMediaLibrary() {
         <button class="mi-btn" data-play="${m.id}" title="Audition">▶</button>
         <button class="mi-btn" data-export="${m.id}" title="Direct export/download">⬇</button>
         <button class="mi-btn icon-add" data-add="${m.id}" title="Add to timeline">+</button>
-        <button class="mi-btn" data-del="${m.id}" title="Remove from project">✕</button>
+        <button class="mi-btn" data-del="${m.id}" title="Direct remove (Ctrl+Z to undo)">✕</button>
       </div>
     `;
     div.addEventListener('click', e => {
@@ -2660,19 +2670,18 @@ function renderMediaLibrary() {
     addMediaToTimeline(+e.target.dataset.add);
   }));
   list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
     const id = +e.target.dataset.del;
     const m = getMedia(id);
     if (!m) return;
-    if (confirm(`Remove "${m.name}" from project?`)) {
-      snapshot();
-      S.mediaFiles = S.mediaFiles.filter(item => item.id !== id);
-      S.tracks.forEach(t => { t.clips = t.clips.filter(c => c.mediaId !== id); });
-      if (S.selectedMediaId === id) S.selectedMediaId = null;
-      renderMediaLibrary();
-      renderTimeline();
-      scheduleAutoSave();
-      status(`Removed "${m.name}"`);
-    }
+    snapshot();
+    S.mediaFiles = S.mediaFiles.filter(item => item.id !== id);
+    S.tracks.forEach(t => { t.clips = t.clips.filter(c => c.mediaId !== id); });
+    if (S.selectedMediaId === id) S.selectedMediaId = null;
+    renderMediaLibrary();
+    renderTimeline();
+    scheduleAutoSave();
+    status(`✓ Removed "${m.name}" · Ctrl+Z to undo`);
   }));
 }
 
@@ -4757,9 +4766,23 @@ document.getElementById('master-vol').addEventListener('input', e => {
   if (lbl) lbl.textContent = Math.round(S.masterVolume * 100) + '%';
 });
 
-// Import
+// Import & Clear Media
 document.getElementById('btn-import').addEventListener('click', () =>
   document.getElementById('file-input').click());
+document.getElementById('btn-clear-media')?.addEventListener('click', () => {
+  if (S.mediaFiles.length === 0) return;
+  snapshot();
+  const count = S.mediaFiles.length;
+  S.mediaFiles = [];
+  S.tracks.forEach(t => { t.clips = []; });
+  S.selectedMediaId = null;
+  S.selectedClipId = null;
+  renderMediaLibrary();
+  renderTimeline();
+  renderVowelPanel();
+  scheduleAutoSave();
+  status(`✓ Cleared all ${count} media files from project · Ctrl+Z to undo`);
+});
 document.getElementById('file-input').addEventListener('change', e => {
   if (e.target.files.length) importFiles(Array.from(e.target.files));
   e.target.value = '';
@@ -5747,6 +5770,19 @@ document.addEventListener('keydown', e => {
         S.tracks.forEach(t => { t.clips = t.clips.filter(c => c.id !== S.selectedClipId); });
         S.selectedClipId = null;
         renderTimeline(); renderVowelPanel(); updateStatusBar(); status('Clip deleted');
+      } else if (S.selectedMediaId) {
+        const m = getMedia(S.selectedMediaId);
+        if (m) {
+          snapshot();
+          const id = S.selectedMediaId;
+          S.mediaFiles = S.mediaFiles.filter(item => item.id !== id);
+          S.tracks.forEach(t => { t.clips = t.clips.filter(c => c.mediaId !== id); });
+          S.selectedMediaId = null;
+          renderMediaLibrary();
+          renderTimeline();
+          scheduleAutoSave();
+          status(`✓ Removed "${m.name}" · Ctrl+Z to undo`);
+        }
       }
       break;
     case 'KeyZ':
