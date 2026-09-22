@@ -356,8 +356,23 @@ html, body {
 /* Track Headers */
 .track-header {
   height: var(--track-h); border-bottom: 1px solid var(--border);
-  padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; gap: 6px;
-  position: relative; background: var(--bg-panel);
+  padding: 8px 10px; display: flex; flex-direction: column; justify-content: flex-start; gap: 6px;
+  position: relative; background: var(--bg-panel); user-select: none;
+  box-sizing: border-box;
+}
+.th-resize-handle {
+  position: absolute; left: 0; right: 0; bottom: -4px; height: 8px;
+  cursor: ns-resize; z-index: 25; transition: background 0.15s ease;
+}
+.th-resize-handle:hover, .th-resize-handle.active-resizing {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.85);
+}
+.tool-action-btn.active-boost {
+  background: rgba(0, 229, 255, 0.18) !important;
+  color: #00e5ff !important;
+  border-color: rgba(0, 229, 255, 0.45) !important;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.25) !important;
 }
 .th-row1 { display: flex; align-items: center; gap: 6px; }
 .th-color-bar { width: 3px; height: 14px; border-radius: 2px; flex-shrink: 0; }
@@ -1041,11 +1056,20 @@ input[type=text], input[type=number] {
           <button class="tool-action-btn" id="btn-duplicate" title="Duplicate Selected Clip [Ctrl+D]">📋 Duplicate</button>
           <button class="tool-action-btn danger-hover" id="btn-del-clip" title="Delete Selected Clip [Del]">🗑 Delete</button>
         </div>
-        <div class="sep-v"></div>
         <div class="tool-group">
           <button class="tool-action-btn" id="btn-toggle-envelopes" title="Toggle Volume Automation Envelopes & Rubber-banding">📈 Automation</button>
           <button class="tool-action-btn" id="btn-add-marker" title="Add Timeline Marker at Playhead [M]">+ Marker</button>
-          <button class="tool-action-btn" id="btn-track-height" title="Cycle Track Height: Standard (82px) → Expanded (125px) → Studio XL (175px)">↕ 82px</button>
+        </div>
+        <div class="sep-v"></div>
+        <div class="tool-group" title="Track Lane Height (Vertical Resize)">
+          <button class="tool-btn" id="btn-track-h-minus" title="Decrease Track Height">−</button>
+          <input type="range" id="track-height-slider" min="55" max="320" value="82" step="5" style="width:68px" title="Adjust Track Lane Height (55px - 320px)">
+          <button class="tool-btn" id="btn-track-h-plus" title="Increase Track Height">+</button>
+          <button class="tool-action-btn" id="btn-track-height" title="Cycle Track Height Presets: 82px → 125px → 180px → 260px">↕ 82px</button>
+        </div>
+        <div class="sep-v"></div>
+        <div class="tool-group" title="Waveform Vertical Stretch / Amplitude Visual Boost">
+          <button class="tool-action-btn" id="btn-toggle-vstretch" title="Waveform Vertical Amplitude Stretch / Boost (Click to cycle 1× → 1.5× → 2× → 3× → 4× for viewing quiet speech & subtle consonants)">⚡ Stretch: 1×</button>
         </div>
         <div class="sep-v"></div>
         <div class="tool-group" title="Waveform Visualizer Color Theme">
@@ -1964,11 +1988,58 @@ const S = {
   // Drag state
   drag:    null,
   vDrag:   null,   // vowel / region canvas drag
+  trackResizeDrag: null, // interactive track lane vertical resize
+
+  // Waveform vertical stretch / visual amplitude multiplier (1x, 1.5x, 2x, 3x, 4x)
+  waveformVerticalStretch: parseFloat(localStorage.getItem('ixr_waveform_vstretch')) || 1.0,
 
   // Playback tracking
   playStartAudioTime:    0,
   playStartPlayheadTime: 0,
 };
+
+// ─────────────────────────────────────────────────────────────────
+// TRACK GEOMETRY HELPERS
+// ─────────────────────────────────────────────────────────────────
+function getTrackHeight(trackOrIndex) {
+  if (trackOrIndex === null || trackOrIndex === undefined) return TRACK_H;
+  if (typeof trackOrIndex === 'object') {
+    return trackOrIndex.height || TRACK_H;
+  }
+  const t = S.tracks[trackOrIndex];
+  return (t && t.height) ? t.height : TRACK_H;
+}
+
+function getTrackTop(targetIndex) {
+  let top = 0;
+  const maxIdx = Math.min(targetIndex, S.tracks.length);
+  for (let i = 0; i < maxIdx; i++) {
+    top += getTrackHeight(i);
+  }
+  return top;
+}
+
+function getTotalTracksHeight() {
+  let total = 0;
+  for (let i = 0; i < S.tracks.length; i++) {
+    total += getTrackHeight(i);
+  }
+  return total;
+}
+
+function getTrackIndexAtY(y) {
+  if (!S.tracks || S.tracks.length === 0) return 0;
+  if (y < 0) return 0;
+  let top = 0;
+  for (let i = 0; i < S.tracks.length; i++) {
+    const h = getTrackHeight(i);
+    if (y >= top && y < top + h) {
+      return i;
+    }
+    top += h;
+  }
+  return Math.max(0, S.tracks.length - 1);
+}
 
 // ─────────────────────────────────────────────────────────────────
 // THEME MANAGER
@@ -2894,6 +2965,7 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
     grad.addColorStop(1, selected ? '#ffffff' : primaryCol);
   }
 
+  const vStretch = S.waveformVerticalStretch || 1.0;
   const barStep = w > 140 ? 2 : 1;
   
   // Layer 1: Outer Peak Silhouette
@@ -2901,7 +2973,7 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
   for (let px = 0; px < w; px += barStep) {
     const fi = pStart + Math.floor((px / w) * pCount);
     const peak = peaks[Math.min(fi, N - 1)] || 0;
-    const bh = Math.max(1, peak * amp);
+    const bh = Math.min(amp, Math.max(1, peak * amp * vStretch));
     ctx.fillRect(x + px, mid - bh, Math.max(1, barStep - 0.5), bh * 2);
   }
 
@@ -2911,7 +2983,7 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
     for (let px = 0; px < w; px += barStep * 2) {
       const fi = pStart + Math.floor((px / w) * pCount);
       const peak = peaks[Math.min(fi, N - 1)] || 0;
-      const coreH = Math.max(1, peak * 0.58 * amp);
+      const coreH = Math.min(amp, Math.max(1, peak * 0.58 * amp * vStretch));
       ctx.fillRect(x + px, mid - coreH, Math.max(1, barStep - 0.5), coreH * 2);
     }
   }
@@ -3030,7 +3102,7 @@ function renderTimeline() {
   const wrapH = scrollWrap.clientHeight || 200;
   const totalSec = totalDuration();
   const canvasW = Math.max(wrapW, Math.ceil(totalSec * S.zoom) + 200);
-  const canvasH = Math.max(wrapH, S.tracks.length * TRACK_H + 20);
+  const canvasH = Math.max(wrapH, getTotalTracksHeight() + 20);
 
   tlEl.width  = canvasW;
   tlEl.height = canvasH;
@@ -3046,15 +3118,17 @@ function renderTimeline() {
 
   // Track backgrounds
   for (let i = 0; i < S.tracks.length; i++) {
+    const ty = getTrackTop(i);
+    const th = getTrackHeight(i);
     tlCtx.fillStyle = isLight
       ? (i % 2 === 0 ? '#ffffff' : '#f8fafc')
       : (i % 2 === 0 ? '#101018' : '#13131c');
-    tlCtx.fillRect(0, i * TRACK_H, canvasW, TRACK_H);
+    tlCtx.fillRect(0, ty, canvasW, th);
     tlCtx.strokeStyle = isLight ? '#e2e8f0' : '#1e1e2c';
     tlCtx.lineWidth = 1;
     tlCtx.beginPath();
-    tlCtx.moveTo(0, (i + 1) * TRACK_H - .5);
-    tlCtx.lineTo(canvasW, (i + 1) * TRACK_H - .5);
+    tlCtx.moveTo(0, ty + th - .5);
+    tlCtx.lineTo(canvasW, ty + th - .5);
     tlCtx.stroke();
   }
 
@@ -3070,7 +3144,8 @@ function renderTimeline() {
   // Clips
   for (let ti = 0; ti < S.tracks.length; ti++) {
     const track = S.tracks[ti];
-    const ty = ti * TRACK_H;
+    const ty = getTrackTop(ti);
+    const th = getTrackHeight(ti);
     for (const clip of track.clips) {
       const media = getMedia(clip.mediaId);
       const cx = clip.startTime * S.zoom;
@@ -3078,17 +3153,17 @@ function renderTimeline() {
       const sel = clip.id === S.selectedClipId;
 
       if (media?.peaks) {
-        drawWaveform(tlCtx, cx, ty + 2, cw, TRACK_H - 4,
+        drawWaveform(tlCtx, cx, ty + 2, cw, th - 4,
           media.peaks, media.duration, clip.offsetInMedia, clip.duration,
           clip.color || CLIP_COLORS[0], sel, clip);
       } else {
         tlCtx.fillStyle = (clip.color || CLIP_COLORS[0]) + (isLight ? '55' : '44');
-        tlCtx.fillRect(cx, ty + 2, cw, TRACK_H - 4);
+        tlCtx.fillRect(cx, ty + 2, cw, th - 4);
       }
 
       // Clip label pill badge for 100% legibility in both themes
       tlCtx.save();
-      tlCtx.beginPath(); tlCtx.rect(cx + 2, ty + 2, cw - 4, TRACK_H - 4); tlCtx.clip();
+      tlCtx.beginPath(); tlCtx.rect(cx + 2, ty + 2, cw - 4, th - 4); tlCtx.clip();
       tlCtx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       const labelText = media ? media.name : '?';
       const textMetrics = tlCtx.measureText(labelText);
@@ -3108,17 +3183,17 @@ function renderTimeline() {
       // Trim handles
       if (sel) {
         tlCtx.fillStyle = isLight ? '#2563eb' : 'rgba(255,255,255,.85)';
-        tlCtx.fillRect(cx, ty + 2, 5, TRACK_H - 4);
-        tlCtx.fillRect(cx + cw - 5, ty + 2, 5, TRACK_H - 4);
+        tlCtx.fillRect(cx, ty + 2, 5, th - 4);
+        tlCtx.fillRect(cx + cw - 5, ty + 2, 5, th - 4);
       }
 
       // Muted overlay
       if (track.mute) {
         tlCtx.fillStyle = isLight ? 'rgba(241, 245, 249, 0.72)' : 'rgba(0,0,0,.55)';
-        tlCtx.fillRect(cx, ty + 2, cw, TRACK_H - 4);
+        tlCtx.fillRect(cx, ty + 2, cw, th - 4);
         tlCtx.fillStyle = isLight ? '#475569' : '#888';
         tlCtx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        tlCtx.fillText('MUTED', cx + 6, ty + TRACK_H / 2 + 4);
+        tlCtx.fillText('MUTED', cx + 6, ty + th / 2 + 4);
       }
     }
   }
@@ -3129,12 +3204,13 @@ function renderTimeline() {
     if (rti >= 0) {
       const rx = recordStartTime * S.zoom;
       const rw = Math.max(6, (S.playheadTime - recordStartTime) * S.zoom);
-      const ry = rti * TRACK_H;
+      const ry = getTrackTop(rti);
+      const rh = getTrackHeight(rti);
       tlCtx.fillStyle = 'rgba(239, 68, 68, 0.35)';
-      tlCtx.fillRect(rx, ry + 2, rw, TRACK_H - 4);
+      tlCtx.fillRect(rx, ry + 2, rw, rh - 4);
       tlCtx.strokeStyle = '#ef4444';
       tlCtx.lineWidth = 1.5;
-      tlCtx.strokeRect(rx, ry + 2, rw, TRACK_H - 4);
+      tlCtx.strokeRect(rx, ry + 2, rw, rh - 4);
       tlCtx.fillStyle = '#ffffff';
       tlCtx.font = 'bold 10px sans-serif';
       tlCtx.fillText('● REC', rx + 6, ry + 16);
@@ -3158,14 +3234,15 @@ function renderTimeline() {
     const sel = getSelClip();
     if (sel) {
       const ti = S.tracks.indexOf(sel.track);
-      const ty = ti * TRACK_H;
+      const ty = getTrackTop(ti);
+      const th = getTrackHeight(ti);
       const cx = sel.clip.startTime * S.zoom;
       const vx = cx + S.vowelStart * S.zoom;
       const vw = (S.vowelEnd - S.vowelStart) * S.zoom;
       tlCtx.fillStyle   = isLight ? 'rgba(217, 119, 6, 0.22)' : 'rgba(245,166,35,.22)';
-      tlCtx.fillRect(vx, ty + 2, vw, TRACK_H - 4);
+      tlCtx.fillRect(vx, ty + 2, vw, th - 4);
       tlCtx.strokeStyle = isLight ? '#d97706' : '#f5a623'; tlCtx.lineWidth = 1.5;
-      tlCtx.strokeRect(vx + .5, ty + 2.5, vw - 1, TRACK_H - 5);
+      tlCtx.strokeRect(vx + .5, ty + 2.5, vw - 1, th - 5);
     }
   }
 
@@ -3724,8 +3801,10 @@ function renderTrackHeaders() {
   c.innerHTML = '';
   S.tracks.forEach(track => {
     if (!track.effects) track.effects = defaultTrackEffects();
+    const trkH = getTrackHeight(track);
     const div = document.createElement('div');
     div.className = 'track-header';
+    div.style.height = trkH + 'px';
     div.innerHTML = `
       <div class="th-row1">
         <div class="th-color-bar" style="background:${track.color}"></div>
@@ -3742,6 +3821,7 @@ function renderTrackHeaders() {
           <span class="th-vol-readout" id="th-vol-val-${track.id}">${Math.round(track.volume * 100)}%</span>
         </div>
       </div>
+      <div class="th-resize-handle" data-rh="${track.id}" title="Drag vertically to resize track height (Shift+Drag: all tracks | Double-click: reset to 82px)"></div>
     `;
     c.appendChild(div);
   });
@@ -3793,6 +3873,89 @@ function renderTrackHeaders() {
     S.tracks = S.tracks.filter(t => t.id !== id);
     renderTrackHeaders(); renderTimeline(); status('Track deleted');
   }));
+
+  // Wire interactive height resize handles on track headers
+  c.querySelectorAll('.th-resize-handle').forEach(handle => {
+    const trackId = +handle.dataset.rh;
+    const track = S.tracks.find(t => t.id === trackId);
+    if (!track) return;
+
+    let startY = 0;
+    let startH = 0;
+    let isDragging = false;
+    let shiftResize = false;
+
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
+      const clientY = (e.touches && e.touches.length) ? e.touches[0].clientY : e.clientY;
+      const dy = clientY - startY;
+      const newH = Math.max(52, Math.min(420, Math.round(startH + dy)));
+      if (shiftResize) {
+        TRACK_H = newH;
+        S.tracks.forEach(t => { t.height = newH; });
+      } else {
+        track.height = newH;
+      }
+      // Update track headers style height
+      c.querySelectorAll('.track-header').forEach((el, idx) => {
+        el.style.height = getTrackHeight(S.tracks[idx]) + 'px';
+      });
+      const slider = document.getElementById('track-height-slider');
+      if (slider) slider.value = newH;
+      const hBtn = document.getElementById('btn-track-height');
+      if (hBtn) hBtn.textContent = `↕ ${newH}px`;
+      renderTimeline();
+    };
+
+    const onPointerUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      handle.classList.remove('active-resizing');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onPointerMove);
+      window.removeEventListener('mouseup', onPointerUp);
+      window.removeEventListener('touchmove', onPointerMove);
+      window.removeEventListener('touchend', onPointerUp);
+      status(`Track height: ${getTrackHeight(track)}px`);
+    };
+
+    const onPointerDown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isDragging = true;
+      shiftResize = !!e.shiftKey;
+      startY = (e.touches && e.touches.length) ? e.touches[0].clientY : e.clientY;
+      startH = getTrackHeight(track);
+      handle.classList.add('active-resizing');
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', onPointerMove, { passive: false });
+      window.addEventListener('mouseup', onPointerUp);
+      window.addEventListener('touchmove', onPointerMove, { passive: false });
+      window.addEventListener('touchend', onPointerUp);
+    };
+
+    handle.addEventListener('mousedown', onPointerDown);
+    handle.addEventListener('touchstart', onPointerDown, { passive: false });
+
+    handle.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (e.shiftKey) {
+        TRACK_H = 82;
+        S.tracks.forEach(t => { t.height = 82; });
+      } else {
+        track.height = 82;
+      }
+      renderTrackHeaders();
+      renderTimeline();
+      const slider = document.getElementById('track-height-slider');
+      if (slider) slider.value = 82;
+      const hBtn = document.getElementById('btn-track-height');
+      if (hBtn) hBtn.textContent = '↕ 82px';
+      status('Track height reset to default (82px)');
+    });
+  });
 }
 
 function addTrack(name) {
@@ -3806,6 +3969,7 @@ function addTrack(name) {
     solo: false,
     isArmed: false,
     effects: defaultTrackEffects(),
+    height: TRACK_H,
     color
   });
   renderTrackHeaders(); renderTimeline();
@@ -6400,7 +6564,22 @@ function handleTimelinePointerDown(clientX, clientY, isTouch = false) {
   const r = tlEl.getBoundingClientRect();
   const mx = clientX - r.left;
   const my = clientY - r.top;
-  const ti = Math.floor(my / TRACK_H);
+
+  // Check if clicking near track lane bottom divider to drag-resize track height
+  for (let i = 0; i < S.tracks.length; i++) {
+    const bottomY = getTrackTop(i) + getTrackHeight(i);
+    if (Math.abs(my - bottomY) <= 5) {
+      S.trackResizeDrag = {
+        trackIndex: i,
+        startY: clientY,
+        startH: getTrackHeight(i),
+        shift: false
+      };
+      return true;
+    }
+  }
+
+  const ti = getTrackIndexAtY(my);
   if (ti < 0 || ti >= S.tracks.length) return false;
   const track = S.tracks[ti];
   const time  = mx / S.zoom;
@@ -6412,12 +6591,13 @@ function handleTimelinePointerDown(clientX, clientY, isTouch = false) {
     const cw = Math.max(2, clip.duration * S.zoom);
     if (mx >= cx - (isTouch ? 4 : 0) && mx <= cx + cw + (isTouch ? 4 : 0)) {
       hitClip = clip;
-      const relY = my - ti * TRACK_H;
+      const trkH = getTrackHeight(ti);
+      const relY = my - getTrackTop(ti);
 
       // Check volume automation envelope nodes
       if (S.showEnvelopes && clip.gainEnvelope && clip.gainEnvelope.length > 0) {
-        const amp = TRACK_H / 2 - 3;
-        const mid = TRACK_H / 2;
+        const amp = trkH / 2 - 3;
+        const mid = trkH / 2;
         for (const pt of clip.gainEnvelope) {
           const nx = cx + (pt.t / clip.duration) * cw;
           const ny = mid - (pt.v - 1.0) * (amp - 2);
@@ -6485,16 +6665,26 @@ tlEl.addEventListener('touchstart', e => {
 }, { passive: false });
 
 tlEl.addEventListener('mousemove', e => {
-  if (S.drag) return;
+  if (S.drag || S.trackResizeDrag) return;
   const r = tlEl.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
-  const ti = Math.floor(my / TRACK_H);
+
+  // Check if hovering near a track divider
+  for (let i = 0; i < S.tracks.length; i++) {
+    const bottomY = getTrackTop(i) + getTrackHeight(i);
+    if (Math.abs(my - bottomY) <= 4) {
+      tlEl.style.cursor = 'ns-resize';
+      return;
+    }
+  }
+
+  const ti = getTrackIndexAtY(my);
   let cur = 'default';
   if (ti >= 0 && ti < S.tracks.length) {
     for (const clip of S.tracks[ti].clips) {
       const cx = clip.startTime * S.zoom, cw = clip.duration * S.zoom;
       if (mx >= cx && mx <= cx+cw) {
-        const relY = my - ti * TRACK_H;
+        const relY = my - getTrackTop(ti);
         if (relY <= 18 && (mx <= cx + 16 || mx >= cx + cw - 16)) {
           cur = 'crosshair';
         } else if (mx <= cx+8 || mx >= cx+cw-8) {
@@ -6513,17 +6703,18 @@ tlEl.addEventListener('dblclick', e => {
   if (!S.showEnvelopes) return;
   const r = tlEl.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
-  const ti = Math.floor(my / TRACK_H);
+  const ti = getTrackIndexAtY(my);
   if (ti < 0 || ti >= S.tracks.length) return;
   const track = S.tracks[ti];
+  const trkH = getTrackHeight(ti);
   for (const clip of track.clips) {
     const cx = clip.startTime * S.zoom, cw = clip.duration * S.zoom;
     if (mx >= cx && mx <= cx + cw) {
       if (!clip.gainEnvelope) clip.gainEnvelope = [];
       const relT = (mx - cx) / S.zoom;
-      const amp = TRACK_H / 2 - 3;
-      const relY = my - ti * TRACK_H;
-      const mid = TRACK_H / 2;
+      const amp = trkH / 2 - 3;
+      const relY = my - getTrackTop(ti);
+      const mid = trkH / 2;
       const val = Math.max(0, Math.min(2.0, +(1.0 - (relY - mid) / (amp - 2)).toFixed(2)));
       clip.gainEnvelope.push({ t: +relT.toFixed(3), v: val });
       clip.gainEnvelope.sort((a, b) => a.t - b.t);
@@ -6536,6 +6727,27 @@ tlEl.addEventListener('dblclick', e => {
 
 // Document-level mousemove & touchmove prevents clip & region drag from sticking
 function handleTimelinePointerMove(clientX, clientY) {
+  if (S.trackResizeDrag) {
+    const { trackIndex, startY, startH, shift } = S.trackResizeDrag;
+    const dy = clientY - startY;
+    const newH = Math.max(52, Math.min(420, Math.round(startH + dy)));
+    if (shift) {
+      TRACK_H = newH;
+      S.tracks.forEach(t => { t.height = newH; });
+    } else if (S.tracks[trackIndex]) {
+      S.tracks[trackIndex].height = newH;
+    }
+    document.querySelectorAll('.track-header').forEach((el, idx) => {
+      el.style.height = getTrackHeight(S.tracks[idx]) + 'px';
+    });
+    const slider = document.getElementById('track-height-slider');
+    if (slider) slider.value = newH;
+    const hBtn = document.getElementById('btn-track-height');
+    if (hBtn) hBtn.textContent = `↕ ${newH}px`;
+    renderTimeline();
+    return;
+  }
+
   if (S.drag) {
     const r  = tlEl.getBoundingClientRect();
     const mx = clientX - r.left;
@@ -6565,9 +6777,10 @@ function handleTimelinePointerMove(clientX, clientY) {
     } else if (type === 'envelope-node' && node) {
       const dtOffset = (mx - clip.startTime * S.zoom) / S.zoom;
       node.t = Math.max(0, Math.min(clip.duration, +dtOffset.toFixed(3)));
-      const amp = TRACK_H / 2 - 3;
-      const relY = my - ti * TRACK_H;
-      const mid = TRACK_H / 2;
+      const trkH = getTrackHeight(ti);
+      const amp = trkH / 2 - 3;
+      const relY = my - getTrackTop(ti);
+      const mid = trkH / 2;
       const val = 1.0 - (relY - mid) / (amp - 2);
       node.v = Math.max(0, Math.min(2.0, +val.toFixed(2)));
     }
@@ -6601,12 +6814,18 @@ document.addEventListener('mousemove', e => {
 });
 
 document.addEventListener('touchmove', e => {
-  if (!S.drag || e.touches.length !== 1) return;
+  if ((!S.drag && !S.trackResizeDrag) || e.touches.length !== 1) return;
   e.preventDefault();
   handleTimelinePointerMove(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
 
 function handleTimelinePointerUp() {
+  if (S.trackResizeDrag) {
+    const trk = S.tracks[S.trackResizeDrag.trackIndex];
+    S.trackResizeDrag = null;
+    tlEl.style.cursor = 'default';
+    status(`Track height: ${getTrackHeight(trk)}px`);
+  }
   if (S.drag) {
     snapshot();
     S.drag = null;
@@ -6770,7 +6989,7 @@ scrollWrap.addEventListener('drop', e => {
         const r = tlEl.getBoundingClientRect();
         const mx = e.clientX - r.left;
         const my = e.clientY - r.top;
-        let ti = Math.floor(my / TRACK_H);
+        let ti = getTrackIndexAtY(my);
         if (ti < 0) ti = 0;
         if (ti >= S.tracks.length) ti = S.tracks.length - 1;
         const track = S.tracks[ti];
@@ -6788,7 +7007,7 @@ scrollWrap.addEventListener('drop', e => {
       const r = tlEl.getBoundingClientRect();
       const mx = e.clientX - r.left;
       const my = e.clientY - r.top;
-      let ti = Math.floor(my / TRACK_H);
+      let ti = getTrackIndexAtY(my);
       if (ti < 0) ti = 0;
       if (ti >= S.tracks.length) ti = Math.max(0, S.tracks.length - 1);
       const track = S.tracks[ti];
@@ -6999,19 +7218,72 @@ document.getElementById('btn-add-marker')?.addEventListener('click', () => {
   renderTimeline();
   status(`Marker added at ${fmtTime(S.playheadTime)}`);
 });
-document.getElementById('btn-track-height')?.addEventListener('click', () => {
-  const sizes = [82, 125, 175];
-  const labels = ['Standard (82px)', 'Expanded (125px)', 'Studio XL (175px)'];
-  const idx = sizes.indexOf(TRACK_H);
-  const next = (idx + 1) % sizes.length;
-  TRACK_H = sizes[next];
+function setAllTracksHeight(newH, notify = true) {
+  TRACK_H = Math.max(52, Math.min(420, Math.round(newH)));
   S.trackHeight = TRACK_H;
+  S.tracks.forEach(t => { t.height = TRACK_H; });
   document.documentElement.style.setProperty('--track-h', TRACK_H + 'px');
+
+  const slider = document.getElementById('track-height-slider');
+  if (slider) slider.value = TRACK_H;
   const btn = document.getElementById('btn-track-height');
-  if (btn) btn.title = `Track Height: ${labels[next]}`;
-  renderTimeline(); renderTrackHeaders();
-  status(`Track height: ${labels[next]}`);
+  if (btn) {
+    btn.textContent = `↕ ${TRACK_H}px`;
+    btn.title = `Cycle Track Height: 82px → 125px → 180px → 260px (Current: ${TRACK_H}px)`;
+  }
+  renderTrackHeaders();
+  renderTimeline();
+  if (notify) status(`Track height: ${TRACK_H}px`);
+}
+
+function cycleWaveformVerticalStretch() {
+  const multipliers = [1.0, 1.5, 2.0, 3.0, 4.0];
+  const cur = S.waveformVerticalStretch || 1.0;
+  let idx = multipliers.findIndex(m => Math.abs(m - cur) < 0.1);
+  if (idx < 0) idx = 0;
+  const next = (idx + 1) % multipliers.length;
+  S.waveformVerticalStretch = multipliers[next];
+  localStorage.setItem('ixr_waveform_vstretch', S.waveformVerticalStretch);
+  updateVStretchButtonUI();
+  renderTimeline();
+  status(`Waveform visual stretch: ${S.waveformVerticalStretch}× ${S.waveformVerticalStretch > 1.0 ? '(Quiet sound acoustics & syllables amplified)' : '(Standard scale)'}`);
+}
+
+function updateVStretchButtonUI() {
+  const btn = document.getElementById('btn-toggle-vstretch');
+  if (!btn) return;
+  const mult = S.waveformVerticalStretch || 1.0;
+  btn.textContent = `⚡ Stretch: ${mult}×`;
+  btn.title = `Waveform Vertical Stretch / Amplitude Visual Boost: ${mult}× (Click to cycle 1× → 1.5× → 2× → 3× → 4×)`;
+  if (mult > 1.0) {
+    btn.classList.add('active-boost');
+  } else {
+    btn.classList.remove('active-boost');
+  }
+}
+
+document.getElementById('btn-track-height')?.addEventListener('click', () => {
+  const sizes = [82, 125, 180, 260];
+  const curIdx = sizes.findIndex(s => Math.abs(s - TRACK_H) <= 5);
+  const next = (curIdx + 1) % sizes.length;
+  setAllTracksHeight(sizes[next]);
 });
+
+document.getElementById('track-height-slider')?.addEventListener('input', (e) => {
+  setAllTracksHeight(+e.target.value, false);
+});
+document.getElementById('track-height-slider')?.addEventListener('change', (e) => {
+  setAllTracksHeight(+e.target.value, true);
+});
+
+document.getElementById('btn-track-h-minus')?.addEventListener('click', () => {
+  setAllTracksHeight(TRACK_H - 15);
+});
+document.getElementById('btn-track-h-plus')?.addEventListener('click', () => {
+  setAllTracksHeight(TRACK_H + 15);
+});
+
+document.getElementById('btn-toggle-vstretch')?.addEventListener('click', cycleWaveformVerticalStretch);
 document.getElementById('sel-waveform-theme')?.addEventListener('change', (e) => {
   S.waveformTheme = e.target.value;
   localStorage.setItem('ixr_waveform_theme', S.waveformTheme);
@@ -8900,6 +9172,13 @@ async function init() {
   renderVowelPanel();
   updateTimecode();
   updateStatusBar();
+
+  // Initialize track height and waveform stretch controls
+  updateVStretchButtonUI();
+  const trkSlider = document.getElementById('track-height-slider');
+  if (trkSlider) trkSlider.value = TRACK_H;
+  const hBtn = document.getElementById('btn-track-height');
+  if (hBtn) hBtn.textContent = `↕ ${TRACK_H}px`;
 }
 
 init();
