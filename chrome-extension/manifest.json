@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "IXR Audio Studio - Google Drive Audio Editor",
+  "short_name": "IXR Drive Studio",
+  "version": "1.0.0",
+  "description": "Edit audio directly from Google Drive: phonics blending, vowel sustain, pitch-preserved speed, dB loudness, tail glitch cleaning, and multitrack editing.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "IXR Audio Studio - Google Drive Audio Editor"
+  },
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://drive.google.com/*",
+    "*://docs.google.com/*",
+    "*://*.googleusercontent.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://drive.google.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "studio.html",
+        "soundtouch.js",
+        "lame.min.js",
+        "icons/*"
+      ],
+      "matches": ["*://drive.google.com/*"]
+    }
+  ]
+}

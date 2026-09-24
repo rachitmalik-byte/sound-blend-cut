@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IXR Audio Studio</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #151b2b;
+      --border: #232d42;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --amber: #f59e0b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 320px;
+      padding: 14px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 12px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .header-icon {
+      font-size: 22px;
+    }
+    .header-text h1 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .header-text p {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      text-decoration: none;
+    }
+    .btn:hover {
+      background: var(--accent-hover);
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: #334155;
+      color: #fff;
+    }
+    .drive-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+    .input-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .input-text {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: #fff;
+      font-size: 11px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      outline: none;
+    }
+    .input-text:focus {
+      border-color: var(--accent);
+    }
+    .footer {
+      text-align: center;
+      font-size: 9.5px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-icon">🎛️</span>
+    <div class="header-text">
+      <h1>IXR Audio Studio</h1>
+      <p>Google Drive Audio Editor</p>
+    </div>
+  </div>
+
+  <div class="card" id="card-drive">
+    <div class="card-title">
+      <span>Google Drive Integration</span>
+      <span style="color:var(--amber);font-size:9.5px">Active</span>
+    </div>
+    <div class="drive-status">
+      <div class="pulse-dot"></div>
+      <span id="txt-drive-status">Ready on Google Drive</span>
+    </div>
+    <button class="btn" id="btn-edit-current-drive" style="display:none;margin-bottom:6px">
+      ⚡ Edit Current Drive Audio
+    </button>
+    <button class="btn btn-secondary" id="btn-open-empty">
+      🚀 Open Studio Workstation
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Open From Drive Link</div>
+    <p style="font-size:10px;color:var(--muted);margin-bottom:6px">Paste any Google Drive audio sharing link or File ID:</p>
+    <div class="input-group">
+      <input type="text" id="inp-drive-link" class="input-text" placeholder="https://drive.google.com/file/d/..." />
+      <button class="btn" id="btn-load-link" style="width:auto;padding:6px 10px">Open</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    100% Offline Phonics, Speed, Vowel &amp; Multitrack Engine
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

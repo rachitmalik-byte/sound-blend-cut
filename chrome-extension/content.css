@@ -1,0 +1,160 @@
+/* IXR Audio Studio - Google Drive Integration Styles */
+
+/* Injected Preview Toolbar Button */
+.ixr-drive-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  height: 36px !important;
+  padding: 0 14px !important;
+  margin: 0 8px !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  color: #ffffff !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border-radius: 18px !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4) !important;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  z-index: 999999 !important;
+  text-decoration: none !important;
+  user-select: none !important;
+}
+
+.ixr-drive-btn:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.6) !important;
+  transform: translateY(-1px) !important;
+}
+
+.ixr-drive-btn:active {
+  transform: translateY(1px) !important;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4) !important;
+}
+
+.ixr-btn-icon {
+  font-size: 15px !important;
+  line-height: 1 !important;
+}
+
+.ixr-btn-text {
+  letter-spacing: 0.2px !important;
+}
+
+/* Spinner */
+.ixr-spinner {
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border-top-color: #ffffff !important;
+  border-radius: 50% !important;
+  animation: ixrSpin 0.7s linear infinite !important;
+}
+
+@keyframes ixrSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Floating Action Widget (Bottom-Right Dock) */
+.ixr-floating-container {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  z-index: 2147483640 !important;
+  pointer-events: auto !important;
+}
+
+.ixr-floating-pill {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 8px 14px !important;
+  background: #0b0f19 !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 12px rgba(37, 99, 235, 0.25) !important;
+  color: #e2e8f0 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.ixr-floating-pill:hover {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 18px rgba(59, 130, 246, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+.ixr-pill-pulse {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #10b981 !important;
+  box-shadow: 0 0 8px #10b981 !important;
+  animation: ixrPulse 2s infinite !important;
+}
+
+@keyframes ixrPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.ixr-floating-container.has-audio .ixr-pill-pulse {
+  background: #f59e0b !important;
+  box-shadow: 0 0 8px #f59e0b !important;
+}
+
+.ixr-pill-icon {
+  font-size: 17px !important;
+}
+
+.ixr-pill-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1px !important;
+  max-width: 220px !important;
+  overflow: hidden !important;
+}
+
+.ixr-pill-title {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #f8fafc !important;
+  letter-spacing: 0.2px !important;
+  white-space: nowrap !important;
+}
+
+.ixr-pill-sub {
+  font-size: 10px !important;
+  color: #94a3b8 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.ixr-pill-action-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 5px 12px !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border: none !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  margin-left: 4px !important;
+  transition: all 0.15s ease !important;
+}
+
+.ixr-pill-action-btn:hover {
+  background: #3b82f6 !important;
+  transform: scale(1.04) !important;
+}
