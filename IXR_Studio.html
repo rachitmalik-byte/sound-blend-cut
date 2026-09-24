@@ -1148,14 +1148,41 @@ input[type=text], input[type=number] {
       <div class="vp-active-clip" id="vp-clip-name" title="Selected Clip">Select a clip</div>
     </div>
 
+    <!-- ── CLIP VOLUME & LOUDNESS GAIN (dB) ── -->
+    <div class="vp-card" id="vp-clip-gain-card" style="margin-bottom:8px">
+      <div class="vp-card-header">
+        <span class="vp-card-title">🔊 Clip Gain / Loudness (dB)</span>
+        <span class="vp-highlight-pill" id="clip-gain-readout">0.0 dB (100%)</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:9.5px;color:var(--text-muted);min-width:34px">-24 dB</span>
+          <input type="range" id="clip-gain-slider" min="-24" max="18" step="0.5" value="0" style="flex:1;height:4px" title="Clip Gain in dB (-24 dB to +18 dB)">
+          <span style="font-size:9.5px;color:var(--text-muted);min-width:34px;text-align:right">+18 dB</span>
+        </div>
+        <div class="ratio-segmented" id="clip-gain-pills">
+          <button class="ratio-btn" data-gain="-12" title="-12 dB (25% volume)">-12dB</button>
+          <button class="ratio-btn" data-gain="-6" title="-6 dB (50% volume)">-6dB</button>
+          <button class="ratio-btn active" data-gain="0" title="0 dB (Original 100%)">0dB</button>
+          <button class="ratio-btn" data-gain="3" title="+3 dB (141% volume)">+3dB</button>
+          <button class="ratio-btn" data-gain="6" title="+6 dB (200% 2× volume)">+6dB</button>
+          <button class="ratio-btn" data-gain="12" title="+12 dB (400% 4× volume)">+12dB</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:2px">
+          <button type="button" class="tool-action-btn" id="btn-normalize-clip" style="flex:1;justify-content:center;font-size:10.5px" title="Auto-normalize speech: maximize volume to -0.5 dB without distortion">⚡ Auto-Normalize</button>
+          <button type="button" class="tool-action-btn" id="btn-reset-clip-gain" style="flex:1;justify-content:center;font-size:10.5px" title="Reset clip volume to 0.0 dB">↺ Reset (0 dB)</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Mode Switcher Tabs -->
     <div class="inspector-tabs">
-      <button class="insp-tab active" id="tab-slow-btn">🔊 Sound Blending</button>
+      <button class="insp-tab active" id="tab-slow-btn">⚡ Speed & Blend</button>
       <button class="insp-tab" id="tab-vowel-btn">🔤 Vowel Sustain</button>
       <button class="insp-tab" id="tab-spectro-btn">🌈 Spectrogram</button>
     </div>
 
-    <!-- ═══ MODE 1: PHONICS SOUND BLENDING SUITE ═══ -->
+    <!-- ═══ MODE 1: SPEED & SOUND BLENDING SUITE ═══ -->
     <div id="panel-slowdown-view">
       <!-- Card 1: Waveform & Target Scope -->
       <div class="vp-card">
@@ -1176,26 +1203,42 @@ input[type=text], input[type=number] {
         </div>
       </div>
 
-      <!-- Card 2: Speed Customization & Fine Control -->
+      <!-- Card 2: Speed Customization & Fine Control (Slow & Fast) -->
       <div class="vp-card">
         <div class="vp-card-header">
-          <span class="vp-card-title">2. Blending Speed</span>
+          <span class="vp-card-title">2. Speed Control (Slow &amp; Fast)</span>
           <span class="vp-highlight-pill" id="slow-speed-readout">0.60× (Phonics Blend)</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
           <!-- Continuous Fine Slider -->
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:9.5px;color:var(--text-muted);min-width:28px">0.20×</span>
-            <input type="range" id="slow-speed-slider" min="0.20" max="1.00" step="0.01" value="0.60" style="flex:1;height:4px">
-            <span style="font-size:9.5px;color:var(--text-muted);min-width:28px;text-align:right">1.00×</span>
+            <span style="font-size:9.5px;color:var(--text-muted);min-width:44px">0.20× Slow</span>
+            <input type="range" id="slow-speed-slider" min="0.20" max="3.00" step="0.01" value="0.60" style="flex:1;height:4px" title="Audio Speed: 0.20× to 3.00×">
+            <span style="font-size:9.5px;color:var(--text-muted);min-width:44px;text-align:right">3.00× Fast</span>
           </div>
-          <!-- Preset Speed Multipliers -->
+          <!-- Slow Presets -->
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Slowdown Presets</span>
+            <span style="font-size:9px;color:var(--text-muted)">&lt; 1.0×</span>
+          </div>
           <div class="ratio-segmented" id="slow-speed-pills">
-            <button class="ratio-btn" data-spd="0.85" title="Mild Blend">0.85×</button>
-            <button class="ratio-btn" data-spd="0.75" title="Moderate Blend">0.75×</button>
+            <button class="ratio-btn" data-spd="0.35" title="Ultra Slow Articulation">0.35×</button>
+            <button class="ratio-btn" data-spd="0.50" title="Half Speed (2× duration)">0.50×</button>
             <button class="ratio-btn active" data-spd="0.60" title="Phonics Sound Blend (Recommended)">0.60×</button>
-            <button class="ratio-btn" data-spd="0.50" title="Extended Phonics">0.50×</button>
-            <button class="ratio-btn" data-spd="0.35" title="Slow Articulation">0.35×</button>
+            <button class="ratio-btn" data-spd="0.75" title="Moderate Slowdown">0.75×</button>
+            <button class="ratio-btn" data-spd="0.85" title="Mild Slowdown">0.85×</button>
+          </div>
+          <!-- Fast & Normal Presets -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
+            <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Fast &amp; Normal Presets</span>
+            <span style="font-size:9px;color:var(--text-muted)">&ge; 1.0×</span>
+          </div>
+          <div class="ratio-segmented" id="fast-speed-pills">
+            <button class="ratio-btn" data-spd="1.00" title="Original 1:1 Normal Speed">1.00×</button>
+            <button class="ratio-btn" data-spd="1.25" title="1.25× Brisk Speech">1.25×</button>
+            <button class="ratio-btn" data-spd="1.50" title="1.50× Fast Speech">1.50×</button>
+            <button class="ratio-btn" data-spd="1.75" title="1.75× Rapid Speech">1.75×</button>
+            <button class="ratio-btn" data-spd="2.00" title="2.00× Double Speed">2.00×</button>
           </div>
         </div>
       </div>
@@ -1208,7 +1251,7 @@ input[type=text], input[type=number] {
         <div style="display:flex;flex-direction:column;gap:6px">
           <select id="slow-profile-select" class="sleek-select">
             <option value="psola" selected>Natural Speech Stretch (Zero Pitch Change · Zero Overlap · No Buzz)</option>
-            <option value="tape">Tape Resample Slowdown (Pitch Drops with Speed · Continuous Flow)</option>
+            <option value="tape">Tape Resample (Pitch Shifts with Speed · Continuous Flow)</option>
             <option value="wsola">Classic WSOLA (SoundTouch Engine)</option>
           </select>
           <span style="font-size:9.5px;color:var(--text-muted);line-height:1.3" id="slow-profile-desc">
@@ -1220,12 +1263,12 @@ input[type=text], input[type=number] {
       <!-- Card 4: Actions -->
       <div class="vp-card highlight">
         <div class="vp-card-header">
-          <span class="vp-card-title">4. Audition & Apply</span>
+          <span class="vp-card-title">4. Audition &amp; Apply</span>
         </div>
         <div class="vp-action-stack">
-          <button class="action-btn-preview" id="btn-audition-slow">▶ Audition Blended Sound</button>
-          <button class="action-btn-apply" id="btn-apply-slow">✓ Apply Sound Blending to Clip</button>
-          <button class="tool-action-btn" id="btn-export-slow-direct" style="width:100%;justify-content:center;padding:6px 0" title="Export slowed audio directly as MP3/WAV">⬇ Export Slowed Sound</button>
+          <button class="action-btn-preview" id="btn-audition-slow">▶ Audition Speed-Adjusted Sound</button>
+          <button class="action-btn-apply" id="btn-apply-slow">✓ Apply Speed Change to Clip</button>
+          <button class="tool-action-btn" id="btn-export-slow-direct" style="width:100%;justify-content:center;padding:6px 0" title="Export speed-adjusted audio directly as MP3/WAV">⬇ Export Speed-Adjusted Sound</button>
         </div>
       </div>
     </div>
@@ -1367,14 +1410,20 @@ input[type=text], input[type=number] {
     <div style="display:flex;flex-direction:column;gap:12px">
       <div>
         <label style="font-size:10.5px;color:var(--text-dim);font-weight:600">Export Scope</label>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
-          <label id="exp-scope-clip-lbl" style="font-size:11.5px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="radio" name="exp-scope" value="clip" checked>
-            <span><strong>Selected Clip Only:</strong> <span id="exp-clip-name" style="color:var(--accent);font-family:var(--font-mono)">Clip</span></span>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+          <label style="font-size:11.5px;color:var(--text);display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg-card);border:1px solid var(--border)">
+            <input type="radio" name="exp-scope" value="timeline" id="exp-scope-timeline" checked style="margin-top:2px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span><strong>Entire Timeline Mix:</strong> All tracks &amp; clips (<span id="exp-tl-info" style="color:var(--accent);font-family:var(--font-mono)">0 clips, 0.00s</span>)</span>
+              <span style="font-size:10px;color:var(--text-muted)">✓ Preserves all silence gaps between sounds, multi-track blends &amp; volume adjustments</span>
+            </div>
           </label>
-          <label style="font-size:11.5px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="radio" name="exp-scope" value="timeline">
-            <span><strong>Entire Timeline Mix:</strong> All tracks combined (trimmed from first to last sound)</span>
+          <label id="exp-scope-clip-lbl" style="font-size:11.5px;color:var(--text);display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg-card);border:1px solid var(--border)">
+            <input type="radio" name="exp-scope" value="clip" id="exp-scope-clip" style="margin-top:2px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span><strong>Selected Clip Only:</strong> <span id="exp-clip-name" style="color:var(--amber);font-family:var(--font-mono)">Clip</span></span>
+              <span style="font-size:10px;color:var(--text-muted)">Renders only the currently highlighted audio clip in isolation</span>
+            </div>
           </label>
         </div>
       </div>
@@ -2441,7 +2490,11 @@ function duplicateSelectedClip() {
     startTime: Math.round((clip.startTime + clip.duration + 0.05) * 100) / 100,
     offsetInMedia: clip.offsetInMedia,
     duration: clip.duration,
-    color: clip.color
+    color: clip.color,
+    gain: clip.gain,
+    gainDb: clip.gainDb,
+    fadeIn: clip.fadeIn,
+    fadeOut: clip.fadeOut
   };
   track.clips.push(newClip);
   S.selectedClipId = newClip.id;
@@ -2466,7 +2519,8 @@ async function renderClipAudio(clip, includeFX = true) {
 
   const track = S.tracks.find(t => t.id === clip.trackId);
   const hasFX = track && hasActiveFX(track);
-  const hasFades = (clip.fadeIn > 0) || (clip.fadeOut > 0) || (clip.gainEnvelope && clip.gainEnvelope.length > 0);
+  const hasGain = (clip.gain !== undefined && Math.abs(clip.gain - 1.0) > 0.01) || (clip.gainDb !== undefined && Math.abs(clip.gainDb) > 0.05);
+  const hasFades = (clip.fadeIn > 0) || (clip.fadeOut > 0) || (clip.gainEnvelope && clip.gainEnvelope.length > 0) || hasGain;
 
   if (!includeFX && !S.eqEnabled && !hasFX && !hasFades) {
     const outBuf = actx.createBuffer(nc, actualLen, sr);
@@ -2741,19 +2795,20 @@ function applyClipGainEnvelopes(gainNode, clip, currentPlayhead, delaySec, durSe
   const clipEndSec = clip.startTime + clip.duration;
   const fadeIn = clip.fadeIn || 0;
   const fadeOut = clip.fadeOut || 0;
+  const clipGain = (clip.gain !== undefined) ? clip.gain : (clip.gainDb !== undefined ? Math.pow(10, clip.gainDb / 20) : 1.0);
 
-  // Base gain
-  g.setValueAtTime(1.0, startTime);
+  // Base gain scaled by clip gain (dB)
+  g.setValueAtTime(clipGain, startTime);
 
   // Fade In curve
   if (fadeIn > 0) {
     const fadeInEnd = Math.min(clipEndSec, clipStartSec + fadeIn);
     if (currentPlayhead < fadeInEnd) {
       const relCurrent = Math.max(0, currentPlayhead - clipStartSec);
-      const startVal = Math.max(0.0001, Math.min(1.0, relCurrent / fadeIn));
+      const startVal = Math.max(0.0001, Math.min(1.0, relCurrent / fadeIn)) * clipGain;
       g.setValueAtTime(startVal, startTime);
       const rampDur = Math.max(0.005, fadeInEnd - Math.max(currentPlayhead, clipStartSec));
-      g.linearRampToValueAtTime(1.0, startTime + rampDur);
+      g.linearRampToValueAtTime(clipGain, startTime + rampDur);
     }
   }
 
@@ -2763,11 +2818,11 @@ function applyClipGainEnvelopes(gainNode, clip, currentPlayhead, delaySec, durSe
     if (currentPlayhead < clipEndSec) {
       if (currentPlayhead < fadeOutStart) {
         const timeUntilFadeOut = fadeOutStart - Math.max(currentPlayhead, clipStartSec);
-        g.setValueAtTime(1.0, startTime + timeUntilFadeOut);
+        g.setValueAtTime(clipGain, startTime + timeUntilFadeOut);
         g.linearRampToValueAtTime(0.0001, endTime);
       } else {
         const relFade = (currentPlayhead - fadeOutStart) / fadeOut;
-        const currentFadeGain = Math.max(0.0001, 1 - relFade);
+        const currentFadeGain = Math.max(0.0001, (1 - relFade) * clipGain);
         g.setValueAtTime(currentFadeGain, startTime);
         g.linearRampToValueAtTime(0.0001, endTime);
       }
@@ -2780,7 +2835,7 @@ function applyClipGainEnvelopes(gainNode, clip, currentPlayhead, delaySec, durSe
       const ptTime = clipStartSec + pt.t;
       if (ptTime >= currentPlayhead && ptTime <= clipEndSec) {
         const targetAt = startTime + (ptTime - Math.max(currentPlayhead, clipStartSec));
-        g.linearRampToValueAtTime(Math.max(0, Math.min(2.0, pt.v)), targetAt);
+        g.linearRampToValueAtTime(Math.max(0, Math.min(8.0, pt.v * clipGain)), targetAt);
       }
     }
   }
@@ -2966,6 +3021,8 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
   }
 
   const vStretch = S.waveformVerticalStretch || 1.0;
+  const clipGainMult = (clip && clip.gain !== undefined) ? clip.gain : (clip && clip.gainDb !== undefined ? Math.pow(10, clip.gainDb / 20) : 1.0);
+  const totalScale = vStretch * clipGainMult;
   const barStep = w > 140 ? 2 : 1;
   
   // Layer 1: Outer Peak Silhouette
@@ -2973,7 +3030,7 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
   for (let px = 0; px < w; px += barStep) {
     const fi = pStart + Math.floor((px / w) * pCount);
     const peak = peaks[Math.min(fi, N - 1)] || 0;
-    const bh = Math.min(amp, Math.max(1, peak * amp * vStretch));
+    const bh = Math.min(amp, Math.max(1, peak * amp * totalScale));
     ctx.fillRect(x + px, mid - bh, Math.max(1, barStep - 0.5), bh * 2);
   }
 
@@ -2983,7 +3040,7 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
     for (let px = 0; px < w; px += barStep * 2) {
       const fi = pStart + Math.floor((px / w) * pCount);
       const peak = peaks[Math.min(fi, N - 1)] || 0;
-      const coreH = Math.min(amp, Math.max(1, peak * 0.58 * amp * vStretch));
+      const coreH = Math.min(amp, Math.max(1, peak * 0.58 * amp * totalScale));
       ctx.fillRect(x + px, mid - coreH, Math.max(1, barStep - 0.5), coreH * 2);
     }
   }
@@ -3165,7 +3222,8 @@ function renderTimeline() {
       tlCtx.save();
       tlCtx.beginPath(); tlCtx.rect(cx + 2, ty + 2, cw - 4, th - 4); tlCtx.clip();
       tlCtx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      const labelText = media ? media.name : '?';
+      const gainTag = (clip.gainDb && Math.abs(clip.gainDb) >= 0.1) ? ` [${clip.gainDb > 0 ? '+' : ''}${clip.gainDb.toFixed(1)}dB]` : '';
+      const labelText = (media ? media.name : '?') + gainTag;
       const textMetrics = tlCtx.measureText(labelText);
       const badgeW = Math.min(cw - 8, textMetrics.width + 10);
       if (badgeW > 12) {
@@ -3346,12 +3404,15 @@ function renderVowelPanel() {
     }
     const slowTimeDisp = document.getElementById('slow-time-display');
     if (slowTimeDisp) slowTimeDisp.textContent = 'Select a clip on timeline';
+    updateClipGainUI(null);
+    if (S.inspTab === 'spectro') renderSpectrogram();
     return;
   }
 
   const { clip } = sel;
   const media = getMedia(clip.mediaId);
   if (clipName) clipName.textContent = media?.name || 'Untitled Clip';
+  updateClipGainUI(clip);
 
   // 1. Render Vowel Tab Waveform
   vowelCtx.clearRect(0, 0, W, H);
@@ -3508,7 +3569,8 @@ function renderSpectrogram() {
   const f2El = document.getElementById('spectro-f2');
   const centEl = document.getElementById('spectro-centroid');
 
-  canvas.width = canvas.parentElement.clientWidth || 300;
+  const parentW = (canvas.parentElement && canvas.parentElement.clientWidth > 50) ? canvas.parentElement.clientWidth : 300;
+  canvas.width = parentW;
   const W = canvas.width, H = canvas.height;
 
   if (!sel) {
@@ -3525,7 +3587,11 @@ function renderSpectrogram() {
   }
 
   const media = getMedia(sel.clip.mediaId);
-  if (!media || !media.buffer) return;
+  if (!media || !media.buffer) {
+    ctx.fillStyle = '#05070c';
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
 
   if (durEl) durEl.textContent = `${sel.clip.duration.toFixed(2)}s`;
 
@@ -4126,7 +4192,7 @@ function renderMediaLibrary() {
     // Quick download
     div.querySelector('[data-act="download"]')?.addEventListener('click', async e => {
       e.stopPropagation();
-      openExportModal();
+      openExportModal(m.id, 'clip');
     });
 
     // Add to timeline
@@ -5011,7 +5077,8 @@ async function auditionSlowdown() {
   const scope = S.slowScope || 'whole';
   const profile = S.slowProfile || 'psola';
 
-  showProc(`Rendering natural ${speed.toFixed(2)}× slowdown audition…`, 30);
+  const speedLabel = speed < 1.0 ? 'slowdown' : (speed > 1.0 ? 'speedup' : 'normal speed');
+  showProc(`Rendering natural ${speed.toFixed(2)}× ${speedLabel} audition…`, 30);
   await pause(20);
 
   const nb = renderSlowdownBuffer(speed, scope, profile);
@@ -5025,7 +5092,7 @@ async function auditionSlowdown() {
   srcNode.connect(eqInput());
   srcNode.start();
   prevSrcs.push(srcNode);
-  status(`▶ Auditioning natural ${speed.toFixed(2)}× slowed audio (${scope === 'whole' ? 'whole clip' : 'selected region'})…`);
+  status(`▶ Auditioning natural ${speed.toFixed(2)}× ${speedLabel} audio (${scope === 'whole' ? 'whole clip' : 'selected region'})…`);
 }
 
 async function applySlowdown() {
@@ -5038,7 +5105,8 @@ async function applySlowdown() {
   const media = getMedia(clip.mediaId);
   if (!media) return;
 
-  showProc(`Applying natural ${speed.toFixed(2)}× slowdown…`, 25);
+  const speedLabel = speed < 1.0 ? 'slowdown' : (speed > 1.0 ? 'speedup' : 'normal speed');
+  showProc(`Applying natural ${speed.toFixed(2)}× ${speedLabel}…`, 25);
   await pause(30);
 
   const newBuf = renderSlowdownBuffer(speed, scope, profile);
@@ -5069,7 +5137,7 @@ async function applySlowdown() {
   renderMediaLibrary();
   renderTimeline();
   renderVowelPanel();
-  status(`✓ Natural slowdown applied: "${newMedia.name}"`);
+  status(`✓ Natural ${speedLabel} applied: "${newMedia.name}"`);
 }
 
 async function applyWholeClipSlowdown(speed) {
@@ -5207,6 +5275,7 @@ function splitAtPlayhead() {
           id: S.nextClipId++, trackId: track.id, mediaId: clip.mediaId,
           startTime: t, offsetInMedia: clip.offsetInMedia + leftDur,
           duration: rightDur, color: clip.color,
+          gain: clip.gain, gainDb: clip.gainDb,
         };
         clip.duration = leftDur;
         track.clips.splice(i+1, 0, right);
@@ -5654,13 +5723,15 @@ async function renderAndExport(fmt) {
     showProc(`Rendering clip "${getMedia(sel.clip.mediaId)?.name || 'clip'}"…`, 25);
     rendered = await renderClipAudio(sel.clip, false);
   } else {
-    const start = getAudioStart();
+    // Timeline mix renders from time 0 to getAudioEnd() to strictly preserve
+    // any initial silence and all silence gaps between clips!
+    const start = 0;
     const end   = getAudioEnd();
-    if (end <= 0 || !isFinite(start)) {
+    if (end <= 0) {
       alert('No audio clips on the timeline to export.');
       return null;
     }
-    showProc('Rendering timeline mix…', 20);
+    showProc('Rendering entire timeline mix (preserving all gaps)…', 20);
     rendered = await renderMix(start, end);
   }
 
@@ -7183,7 +7254,7 @@ document.getElementById('zoom-slider').addEventListener('input',  e  => setZoom(
 document.getElementById('btn-add-track').addEventListener('click', () => { addTrack(); snapshot(); });
 document.getElementById('btn-split').addEventListener('click',    splitAtPlayhead);
 document.getElementById('btn-duplicate')?.addEventListener('click', duplicateSelectedClip);
-document.getElementById('btn-export-clip-quick')?.addEventListener('click', () => openExportModal());
+document.getElementById('btn-export-clip-quick')?.addEventListener('click', () => openExportModal(null, 'clip'));
 document.getElementById('btn-reset-project')?.addEventListener('click', clearProjectSession);
 document.getElementById('btn-help-shortcuts')?.addEventListener('click', () => {
   document.getElementById('shortcuts-modal')?.classList.toggle('hidden');
@@ -7537,7 +7608,7 @@ function setInspectorTab(tab) {
   if (spectroView) spectroView.style.display = tab === 'spectro' ? 'block' : 'none';
 
   if (tab === 'spectro') {
-    renderSpectrogram();
+    requestAnimationFrame(() => renderSpectrogram());
   }
 
   renderVowelPanel();
@@ -7573,7 +7644,7 @@ function setSlowScope(scope) {
 }
 
 function setSlowSpeed(speed) {
-  const val = Math.max(0.20, Math.min(1.00, +speed));
+  const val = Math.max(0.20, Math.min(3.00, +speed));
   S.slowSpeed = val;
   const slider = document.getElementById('slow-speed-slider');
   if (slider) slider.value = val;
@@ -7587,11 +7658,17 @@ function setSlowSpeed(speed) {
     else if (Math.abs(val - 0.75) < 0.01) label = '0.75× (Moderate)';
     else if (Math.abs(val - 0.50) < 0.01) label = '0.50× (Extended Phonics)';
     else if (Math.abs(val - 0.35) < 0.01) label = '0.35× (Ultra Articulated)';
+    else if (Math.abs(val - 1.00) < 0.01) label = '1.00× (Original 1:1)';
+    else if (Math.abs(val - 1.25) < 0.01) label = '1.25× (Brisk Speech)';
+    else if (Math.abs(val - 1.50) < 0.01) label = '1.50× (Fast Speech)';
+    else if (Math.abs(val - 1.75) < 0.01) label = '1.75× (Rapid Speech)';
+    else if (Math.abs(val - 2.00) < 0.01) label = '2.00× (Double Speed)';
+    else if (val > 1.0) label = `${val.toFixed(2)}× (+${pct - 100}% Fast)`;
     readout.textContent = label;
   }
 
-  // Update active pill button
-  document.querySelectorAll('#slow-speed-pills .ratio-btn').forEach(btn => {
+  // Update active pill button across both slow and fast segmented controls
+  document.querySelectorAll('#slow-speed-pills .ratio-btn, #fast-speed-pills .ratio-btn').forEach(btn => {
     const bSpd = parseFloat(btn.dataset.spd);
     btn.classList.toggle('active', Math.abs(bSpd - val) < 0.015);
   });
@@ -7599,12 +7676,124 @@ function setSlowSpeed(speed) {
   renderVowelPanel();
 }
 
+// ─────────────────────────────────────────────────────────────────
+// CLIP GAIN / LOUDNESS CONTROLS (dB)
+// ─────────────────────────────────────────────────────────────────
+function setClipGainDb(gainDb, pushUndo = false) {
+  const sel = getSelClip();
+  if (!sel) return;
+  if (pushUndo) snapshot();
+  const clampedDb = Math.max(-24, Math.min(18, parseFloat(gainDb) || 0));
+  const mult = Math.pow(10, clampedDb / 20);
+  sel.clip.gainDb = Math.round(clampedDb * 10) / 10;
+  sel.clip.gain = mult;
+
+  updateClipGainUI(sel.clip);
+  renderTimeline();
+  renderVowelPanel();
+  scheduleAutoSave();
+}
+
+function autoNormalizeSelectedClip() {
+  const sel = getSelClip();
+  if (!sel) {
+    status('Please select a clip to normalize');
+    return;
+  }
+  const media = getMedia(sel.clip.mediaId);
+  if (!media || !media.buffer) return;
+
+  const buf = media.buffer;
+  const sr = buf.sampleRate;
+  const startS = Math.max(0, Math.floor(sel.clip.offsetInMedia * sr));
+  const endS = Math.min(buf.length, Math.floor((sel.clip.offsetInMedia + sel.clip.duration) * sr));
+
+  let maxPeak = 0;
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const data = buf.getChannelData(c);
+    for (let i = startS; i < endS; i++) {
+      const abs = Math.abs(data[i]);
+      if (abs > maxPeak) maxPeak = abs;
+    }
+  }
+
+  if (maxPeak <= 0.0001) {
+    status('Audio is silent, cannot normalize');
+    return;
+  }
+
+  // Target -0.5 dBFS (~0.944 linear)
+  const targetLinear = 0.94406;
+  const neededMult = targetLinear / maxPeak;
+  let gainDb = Math.round((20 * Math.log10(neededMult)) * 2) / 2; // round to nearest 0.5 dB
+  gainDb = Math.max(-24, Math.min(18, gainDb));
+
+  snapshot();
+  setClipGainDb(gainDb, false);
+  status(`⚡ Normalized "${media.name}" to -0.5 dBFS peak (${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)} dB)`);
+}
+
+function updateClipGainUI(clip) {
+  const slider = document.getElementById('clip-gain-slider');
+  const readout = document.getElementById('clip-gain-readout');
+  const btnNorm = document.getElementById('btn-normalize-clip');
+  const btnReset = document.getElementById('btn-reset-clip-gain');
+
+  if (!clip) {
+    if (slider) { slider.disabled = true; slider.value = 0; }
+    if (readout) readout.textContent = '— (No clip selected)';
+    if (btnNorm) btnNorm.disabled = true;
+    if (btnReset) btnReset.disabled = true;
+    document.querySelectorAll('#clip-gain-pills .ratio-btn').forEach(b => b.classList.remove('active'));
+    return;
+  }
+
+  if (slider) slider.disabled = false;
+  if (btnNorm) btnNorm.disabled = false;
+  if (btnReset) btnReset.disabled = false;
+
+  const gainDb = (clip.gainDb !== undefined) ? clip.gainDb : 0.0;
+  const mult = (clip.gain !== undefined) ? clip.gain : Math.pow(10, gainDb / 20);
+
+  if (slider) slider.value = gainDb;
+  if (readout) {
+    const sign = gainDb > 0 ? '+' : '';
+    readout.textContent = `${sign}${gainDb.toFixed(1)} dB (${Math.round(mult * 100)}%)`;
+  }
+
+  document.querySelectorAll('#clip-gain-pills .ratio-btn').forEach(btn => {
+    const bGain = parseFloat(btn.dataset.gain);
+    btn.classList.toggle('active', Math.abs(bGain - gainDb) < 0.25);
+  });
+}
+
+// Wire Clip Gain Controls
+document.getElementById('clip-gain-slider')?.addEventListener('input', e => {
+  setClipGainDb(+e.target.value, false);
+});
+document.getElementById('clip-gain-slider')?.addEventListener('change', e => {
+  snapshot();
+});
+document.getElementById('clip-gain-pills')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-gain]');
+  if (!btn) return;
+  setClipGainDb(+btn.dataset.gain, true);
+});
+document.getElementById('btn-normalize-clip')?.addEventListener('click', () => {
+  autoNormalizeSelectedClip();
+});
+document.getElementById('btn-reset-clip-gain')?.addEventListener('click', () => {
+  setClipGainDb(0, true);
+  status('Clip volume reset to 0.0 dB');
+});
+
 // Theme toggle button
 document.getElementById('btn-theme-toggle')?.addEventListener('click', toggleTheme);
 
 // Inspector tab switcher buttons
 document.getElementById('tab-slow-btn')?.addEventListener('click', () => setInspectorTab('slow'));
 document.getElementById('tab-vowel-btn')?.addEventListener('click', () => setInspectorTab('vowel'));
+document.getElementById('tab-spectro-btn')?.addEventListener('click', () => setInspectorTab('spectro'));
 
 // Blending scope toggle buttons
 document.getElementById('scope-btn-whole')?.addEventListener('click', () => setSlowScope('whole'));
@@ -7613,6 +7802,11 @@ document.getElementById('scope-btn-region')?.addEventListener('click', () => set
 // Blending speed slider & preset buttons
 document.getElementById('slow-speed-slider')?.addEventListener('input', e => setSlowSpeed(+e.target.value));
 document.getElementById('slow-speed-pills')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-spd]');
+  if (!btn) return;
+  setSlowSpeed(+btn.dataset.spd);
+});
+document.getElementById('fast-speed-pills')?.addEventListener('click', e => {
   const btn = e.target.closest('[data-spd]');
   if (!btn) return;
   setSlowSpeed(+btn.dataset.spd);
@@ -7746,12 +7940,28 @@ function getRandomIdStr() {
   return Math.random().toString(16).substring(2, 6);
 }
 
-function openExportModal(targetMediaId = null) {
+function openExportModal(targetMediaId = null, defaultScope = null) {
   const sel = getSelClip();
   const clipRadio = document.querySelector('input[name="exp-scope"][value="clip"]');
   const tlRadio = document.querySelector('input[name="exp-scope"][value="timeline"]');
   const clipNameEl = document.getElementById('exp-clip-name');
   const srcLabel = document.getElementById('exp-name-source');
+
+  // Compute live timeline info: clips count & total mix duration
+  let totalClips = 0;
+  let maxTimelineEnd = 0;
+  for (const t of S.tracks) {
+    if (t.mute) continue;
+    for (const c of t.clips) {
+      totalClips++;
+      const e = c.startTime + c.duration;
+      if (e > maxTimelineEnd) maxTimelineEnd = e;
+    }
+  }
+  const tlInfoEl = document.getElementById('exp-tl-info');
+  if (tlInfoEl) {
+    tlInfoEl.textContent = `${totalClips} clip${totalClips !== 1 ? 's' : ''}, ${maxTimelineEnd.toFixed(2)}s`;
+  }
 
   let activeMediaName = '';
   if (targetMediaId) {
@@ -7763,23 +7973,41 @@ function openExportModal(targetMediaId = null) {
   }
 
   if (activeMediaName) {
-    if (clipRadio) {
-      clipRadio.disabled = false;
-      clipRadio.checked = true;
-    }
+    if (clipRadio) clipRadio.disabled = false;
     if (clipNameEl) clipNameEl.textContent = `"${activeMediaName}"`;
-    if (srcLabel) srcLabel.textContent = `Clip: "${activeMediaName}"`;
   } else {
     if (clipRadio) {
       clipRadio.disabled = true;
       clipRadio.checked = false;
     }
-    if (tlRadio) tlRadio.checked = true;
     if (clipNameEl) clipNameEl.textContent = '(Select a clip to export only that clip)';
-    if (srcLabel) srcLabel.textContent = 'Timeline mix';
   }
 
-  const base = activeMediaName ? sanitizeFilename(activeMediaName) : getSmartExportBaseName();
+  // Preference: default to 'timeline' unless 'clip' is explicitly requested
+  const preferScope = defaultScope || 'timeline';
+  if (preferScope === 'clip' && activeMediaName && clipRadio) {
+    clipRadio.checked = true;
+  } else if (tlRadio) {
+    tlRadio.checked = true;
+  }
+
+  const isTimeline = tlRadio && tlRadio.checked;
+  if (srcLabel) {
+    srcLabel.textContent = isTimeline ? 'Timeline mix' : `Clip: "${activeMediaName}"`;
+  }
+
+  // Bind radio change handlers so filename and label react immediately to switching scope
+  document.querySelectorAll('input[name="exp-scope"]').forEach(r => {
+    r.onchange = () => {
+      const scopeVal = document.querySelector('input[name="exp-scope"]:checked')?.value;
+      const baseName = (scopeVal === 'clip' && activeMediaName) ? sanitizeFilename(activeMediaName) : getSmartExportBaseName();
+      const input = document.getElementById('exp-filename');
+      if (input) input.value = getNextUniqueFilename(baseName);
+      if (srcLabel) srcLabel.textContent = (scopeVal === 'clip' && activeMediaName) ? `Clip: "${activeMediaName}"` : 'Timeline mix';
+    };
+  });
+
+  const base = (!isTimeline && activeMediaName) ? sanitizeFilename(activeMediaName) : getSmartExportBaseName();
   const uniqueName = getNextUniqueFilename(base);
   const input = document.getElementById('exp-filename');
   if (input) {
@@ -7805,7 +8033,7 @@ function closeExportModal() {
 }
 
 // Export modal
-document.getElementById('btn-export').addEventListener('click', () => openExportModal());
+document.getElementById('btn-export').addEventListener('click', () => openExportModal(null, 'timeline'));
 document.getElementById('btn-exp-cancel').addEventListener('click', closeExportModal);
 
 document.getElementById('btn-refresh-name').addEventListener('click', () => {
