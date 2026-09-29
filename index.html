@@ -43,7 +43,7 @@
   --header-w:    188px;
   --transport-h: 52px;
   --sidebar-w:   260px;
-  --vowel-w:     318px;
+  --vowel-w:     328px;
   --radius-sm:   5px;
   --radius-md:   8px;
   --radius-lg:   12px;
@@ -488,6 +488,12 @@ html, body {
 #ratio-btns.ratio-segmented {
   grid-template-columns: repeat(4, 1fr);
 }
+#noise-presets-pills.ratio-segmented {
+  grid-template-columns: repeat(4, 1fr);
+}
+#clip-gain-pills.ratio-segmented {
+  grid-template-columns: repeat(6, 1fr);
+}
 .ratio-btn {
   background: transparent; border: none; color: var(--text-dim);
   font-size: 11px; font-weight: 500; padding: 4px 0; text-align: center;
@@ -528,13 +534,13 @@ html, body {
 /* Inspector Tabs */
 .inspector-tabs {
   display: flex; background: var(--bg-card); border-bottom: 1px solid var(--border);
-  padding: 4px; gap: 4px; flex-shrink: 0;
+  padding: 4px 3px; gap: 3px; flex-shrink: 0;
 }
 .insp-tab {
-  flex: 1; padding: 7px 4px; font-size: 11px; font-weight: 600;
+  flex: 1; padding: 6px 1px; font-size: 9.5px; font-weight: 600;
   border-radius: var(--radius-sm); background: transparent; border: 1px solid transparent;
   color: var(--text-muted); cursor: pointer; transition: all 0.15s ease;
-  text-align: center; white-space: nowrap; user-select: none;
+  text-align: center; white-space: nowrap; user-select: none; letter-spacing: -0.2px;
 }
 .insp-tab:hover { color: var(--text); background: var(--bg-hover); }
 .insp-tab.active {
@@ -1041,58 +1047,58 @@ input[type=text], input[type=number] {
 
     <!-- Timeline Workspace -->
     <div id="timeline-section">
-      <!-- Minimalist Toolbar -->
+      <!-- Minimalist Organized Toolbar -->
       <div id="tl-toolbar">
-        <div class="tool-group">
-          <button class="tool-btn" id="btn-zoom-out" title="Zoom Out [-]">−</button>
-          <input type="range" id="zoom-slider" min="20" max="800" value="100" style="width:72px">
-          <button class="tool-btn" id="btn-zoom-in" title="Zoom In [+]">+</button>
-          <span id="zoom-label" class="meta-tag">100px/s</span>
-        </div>
-        <div class="sep-v"></div>
+        <!-- Edit Operations Pod -->
         <div class="tool-group">
           <button class="tool-action-btn" id="btn-split" title="Split Clip at Playhead [S]">✂ Split</button>
-          <button class="tool-action-btn" id="btn-split-syllables" title="Auto-Detect Syllables & Split into Phonemic Units">✂ Split Syllables</button>
           <button class="tool-action-btn" id="btn-duplicate" title="Duplicate Selected Clip [Ctrl+D]">📋 Duplicate</button>
           <button class="tool-action-btn danger-hover" id="btn-del-clip" title="Delete Selected Clip [Del]">🗑 Delete</button>
+          <button class="tool-action-btn" id="btn-split-syllables" title="Auto-Detect Syllables &amp; Split into Phonemic Units">✂ Syllables</button>
         </div>
+
+        <div class="sep-v"></div>
+
+        <!-- View & Timeline Zoom Pod -->
         <div class="tool-group">
-          <button class="tool-action-btn" id="btn-toggle-envelopes" title="Toggle Volume Automation Envelopes & Rubber-banding">📈 Automation</button>
-          <button class="tool-action-btn" id="btn-add-marker" title="Add Timeline Marker at Playhead [M]">+ Marker</button>
-        </div>
-        <div class="sep-v"></div>
-        <div class="tool-group" title="Track Lane Height (Vertical Resize)">
-          <button class="tool-btn" id="btn-track-h-minus" title="Decrease Track Height">−</button>
-          <input type="range" id="track-height-slider" min="55" max="320" value="82" step="5" style="width:68px" title="Adjust Track Lane Height (55px - 320px)">
-          <button class="tool-btn" id="btn-track-h-plus" title="Increase Track Height">+</button>
+          <button class="tool-btn" id="btn-zoom-out" title="Zoom Out [-]">−</button>
+          <input type="range" id="zoom-slider" min="20" max="800" value="100" style="width:68px" title="Zoom Timeline">
+          <button class="tool-btn" id="btn-zoom-in" title="Zoom In [+]">+</button>
+          <span id="zoom-label" class="meta-tag" style="min-width:38px">100px/s</span>
           <button class="tool-action-btn" id="btn-track-height" title="Cycle Track Height Presets: 82px → 125px → 180px → 260px">↕ 82px</button>
-        </div>
-        <div class="sep-v"></div>
-        <div class="tool-group" title="Waveform Vertical Stretch / Amplitude Visual Boost">
-          <button class="tool-action-btn" id="btn-toggle-vstretch" title="Waveform Vertical Amplitude Stretch / Boost (Click to cycle 1× → 1.5× → 2× → 3× → 4× for viewing quiet speech & subtle consonants)">⚡ Stretch: 1×</button>
-        </div>
-        <div class="sep-v"></div>
-        <div class="tool-group" title="Waveform Visualizer Color Theme">
+          <!-- Hidden inputs for backward-compatibility with track height handlers -->
+          <input type="range" id="track-height-slider" min="55" max="320" value="82" step="5" style="display:none">
+          <button id="btn-track-h-minus" style="display:none"></button>
+          <button id="btn-track-h-plus" style="display:none"></button>
+          <button class="tool-action-btn" id="btn-toggle-vstretch" title="Waveform Vertical Amplitude Stretch / Boost (Click to cycle 1× → 1.5× → 2× → 3× → 4× for quiet speech)">⚡ Stretch: 1×</button>
           <select id="sel-waveform-theme" class="sleek-select" style="font-size:10px;padding:2px 5px;height:22px;border-radius:var(--radius-sm)">
-            <option value="cyberpunk">⚡ Cyberpunk Cyan</option>
-            <option value="amber">🌅 Sunset Amber</option>
-            <option value="green">📼 Retro Studio</option>
+            <option value="cyberpunk">⚡ Cyberpunk</option>
+            <option value="amber">🌅 Sunset</option>
+            <option value="green">📼 Studio</option>
             <option value="slate">🪙 Slate</option>
           </select>
         </div>
+
         <div class="sep-v"></div>
+
+        <!-- Automation & Quick Export Pod -->
         <div class="tool-group">
+          <button class="tool-action-btn" id="btn-toggle-envelopes" title="Toggle Volume Automation Envelopes &amp; Rubber-banding">📈 Automation</button>
+          <button class="tool-action-btn" id="btn-add-marker" style="display:none" title="Add Marker">+ Marker</button>
           <button class="tool-action-btn" id="btn-export-clip-quick" title="Export Selected Clip [Shift+E]">⬇ Export Clip</button>
         </div>
+
         <div class="spacer"></div>
+
+        <!-- Session & History Pod -->
         <div class="tool-group">
-          <span id="autosave-badge" style="font-size:10px;color:var(--text-muted);margin-right:6px;display:inline-flex;align-items:center;gap:4px">
+          <span id="autosave-badge" style="font-size:10px;color:var(--text-muted);margin-right:4px;display:inline-flex;align-items:center;gap:4px">
             <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green)"></span> Saved
           </span>
-          <button class="tool-action-btn" id="btn-reset-project" title="Start new session / clear timeline">📄 New</button>
-          <button class="tool-btn" id="btn-help-shortcuts" title="Keyboard Shortcuts [?]">⌨</button>
           <button class="tool-btn" id="btn-undo" title="Undo [Ctrl+Z]">↩</button>
           <button class="tool-btn" id="btn-redo" title="Redo [Ctrl+Y]">↪</button>
+          <button class="tool-action-btn" id="btn-reset-project" title="Start new session / clear timeline">📄 New</button>
+          <button class="tool-btn" id="btn-help-shortcuts" title="Keyboard Shortcuts [?]">⌨</button>
         </div>
       </div>
 
@@ -1114,27 +1120,8 @@ input[type=text], input[type=number] {
       </div>
     </div>
 
-    <!-- 5-Band EQ Section -->
-    <div id="eq-section" class="collapsed" style="display:none !important">
-      <canvas id="eq-canvas"></canvas>
-      <div id="eq-sidebar">
-        <div class="eq-title">5-Band Parametric EQ</div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <label style="font-size:10px;color:var(--text-dim)">Voice Preset</label>
-          <select id="eq-preset" class="sleek-select">
-            <option value="flat">Flat Response</option>
-            <option value="clarity">Voice Clarity (Speech Focus)</option>
-            <option value="warmth">Warmth & Body</option>
-            <option value="crisp">Crisp Diction & Air</option>
-          </select>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-          <input type="checkbox" id="eq-on">
-          <label for="eq-on" style="font-size:10.5px;color:var(--text-dim);cursor:pointer">EQ Filter Active</label>
-        </div>
-        <div id="eq-sliders" style="display:flex;flex-direction:column;gap:2px;overflow-y:auto"></div>
-      </div>
-    </div>
+    <!-- Hidden container for legacy EQ observer compatibility -->
+    <div id="eq-section" style="display:none !important"></div>
 
   </div>
 
@@ -1143,43 +1130,18 @@ input[type=text], input[type=number] {
     <div id="vp-header">
       <div class="vp-head-title">
         <span class="vp-icon">🎛️</span>
-        <span>Phonics & Speech Studio</span>
+        <span>Phonics &amp; Audio Studio</span>
       </div>
       <div class="vp-active-clip" id="vp-clip-name" title="Selected Clip">Select a clip</div>
     </div>
 
-    <!-- ── CLIP VOLUME & LOUDNESS GAIN (dB) ── -->
-    <div class="vp-card" id="vp-clip-gain-card" style="margin-bottom:8px">
-      <div class="vp-card-header">
-        <span class="vp-card-title">🔊 Clip Gain / Loudness (dB)</span>
-        <span class="vp-highlight-pill" id="clip-gain-readout">0.0 dB (100%)</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:9.5px;color:var(--text-muted);min-width:34px">-24 dB</span>
-          <input type="range" id="clip-gain-slider" min="-24" max="18" step="0.5" value="0" style="flex:1;height:4px" title="Clip Gain in dB (-24 dB to +18 dB)">
-          <span style="font-size:9.5px;color:var(--text-muted);min-width:34px;text-align:right">+18 dB</span>
-        </div>
-        <div class="ratio-segmented" id="clip-gain-pills">
-          <button class="ratio-btn" data-gain="-12" title="-12 dB (25% volume)">-12dB</button>
-          <button class="ratio-btn" data-gain="-6" title="-6 dB (50% volume)">-6dB</button>
-          <button class="ratio-btn active" data-gain="0" title="0 dB (Original 100%)">0dB</button>
-          <button class="ratio-btn" data-gain="3" title="+3 dB (141% volume)">+3dB</button>
-          <button class="ratio-btn" data-gain="6" title="+6 dB (200% 2× volume)">+6dB</button>
-          <button class="ratio-btn" data-gain="12" title="+12 dB (400% 4× volume)">+12dB</button>
-        </div>
-        <div style="display:flex;gap:6px;margin-top:2px">
-          <button type="button" class="tool-action-btn" id="btn-normalize-clip" style="flex:1;justify-content:center;font-size:10.5px" title="Auto-normalize speech: maximize volume to -0.5 dB without distortion">⚡ Auto-Normalize</button>
-          <button type="button" class="tool-action-btn" id="btn-reset-clip-gain" style="flex:1;justify-content:center;font-size:10.5px" title="Reset clip volume to 0.0 dB">↺ Reset (0 dB)</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Mode Switcher Tabs -->
+    <!-- Mode Switcher Tabs (5 Focused Functional Areas) -->
     <div class="inspector-tabs">
-      <button class="insp-tab active" id="tab-slow-btn">⚡ Speed & Blend</button>
-      <button class="insp-tab" id="tab-vowel-btn">🔤 Vowel Sustain</button>
-      <button class="insp-tab" id="tab-spectro-btn">🌈 Spectrogram</button>
+      <button class="insp-tab active" id="tab-slow-btn" title="Adjust Speech Speed &amp; Blending">⚡ Speed</button>
+      <button class="insp-tab" id="tab-vowel-btn" title="Isolate &amp; Prolong Vowel Sounds">🔤 Vowel</button>
+      <button class="insp-tab" id="tab-noise-btn" title="AI Background Noise &amp; Hiss Removal">🔇 Denoise</button>
+      <button class="insp-tab" id="tab-gain-btn" title="Loudness Gain, Auto-Normalize &amp; 5-Band Voice EQ">🔊 Gain &amp; EQ</button>
+      <button class="insp-tab" id="tab-spectro-btn" title="Sonogram Heatmap &amp; Formants">🌈 Spectro</button>
     </div>
 
     <!-- ═══ MODE 1: SPEED & SOUND BLENDING SUITE ═══ -->
@@ -1334,7 +1296,120 @@ input[type=text], input[type=number] {
       </div>
     </div>
 
-    <!-- ═══ MODE 3: FFT SPECTROGRAM HEATMAP (SONOGRAM) ═══ -->
+    <!-- ═══ MODE 3: BACKGROUND NOISE REMOVER (DENOISER) ═══ -->
+    <div id="panel-noise-view" style="display:none">
+      <!-- Card 1: Noise Suppression Engine -->
+      <div class="vp-card">
+        <div class="vp-card-header">
+          <span class="vp-card-title">1. Noise Suppression</span>
+          <span class="vp-highlight-pill" id="noise-amount-readout">18 dB (Standard)</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <!-- Continuous Fine Slider -->
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:9.5px;color:var(--text-muted);min-width:32px">6 dB</span>
+            <input type="range" id="noise-suppress-slider" min="6" max="30" step="1" value="18" style="flex:1;height:4px" title="Noise Suppression Amount (6 dB to 30 dB)">
+            <span style="font-size:9.5px;color:var(--text-muted);min-width:32px;text-align:right">30 dB</span>
+          </div>
+          <!-- Presets -->
+          <div class="ratio-segmented" id="noise-presets-pills">
+            <button class="ratio-btn" data-ndb="10" title="10 dB: Mild room hiss reduction, ultra-transparent">10dB Light</button>
+            <button class="ratio-btn active" data-ndb="18" title="18 dB: Standard voice denoising (Optimal speech balance)">18dB Std</button>
+            <button class="ratio-btn" data-ndb="24" title="24 dB: Strong noise (AC, HVAC, street rumble)">24dB Heavy</button>
+            <button class="ratio-btn" data-ndb="30" title="30 dB: Maximum noise reduction">30dB Max</button>
+          </div>
+          <!-- Real-time DSP Toggles -->
+          <div style="display:flex;flex-direction:column;gap:5px;margin-top:4px;padding-top:6px;border-top:1px solid var(--border)">
+            <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim);cursor:pointer" title="Removes sub-bass mic thumps, air-conditioner rumble, and 50/60 Hz mains electricity hum">
+              <input type="checkbox" id="noise-lowcut" checked>
+              <span>80 Hz Low-Cut (Purges HVAC &amp; Mains Hum)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim);cursor:pointer" title="Gates residual noise floor to near-absolute silence during speech pauses">
+              <input type="checkbox" id="noise-silence-gate" checked>
+              <span>Silence Gate (Pristine Speech Pauses)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim);cursor:pointer" title="Attenuates high-frequency tape and preamp hiss above 7.5 kHz">
+              <input type="checkbox" id="noise-dehiss" checked>
+              <span>High De-Hiss (&gt;7.5 kHz Tone Smoothing)</span>
+            </label>
+          </div>
+        </div>
+        <div class="vp-sub-info" style="margin-top:6px">
+          <span id="noise-floor-readout">Noise Floor: —</span>
+          <span class="vp-hint">Spectral subtraction with minimum-statistics tracking</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Audition & Apply Actions -->
+      <div class="vp-card highlight">
+        <div class="vp-card-header">
+          <span class="vp-card-title">2. Audition &amp; Clean</span>
+        </div>
+        <div class="vp-action-stack">
+          <button class="action-btn-preview" id="btn-audition-noise" title="Listen to clip with noise removal applied">▶ Audition Denoised Sound</button>
+          <button class="action-btn-apply" id="btn-apply-noise" title="Clean this clip and update waveform in project">✓ Apply Noise Removal to Clip</button>
+          <button class="tool-action-btn" id="btn-export-noise-direct" style="width:100%;justify-content:center;padding:6px 0" title="Export cleaned audio directly as MP3/WAV">⬇ Export Denoised Sound</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MODE 4: LEVEL & VOICE EQ SUITE ═══ -->
+    <div id="panel-gain-view" style="display:none">
+      <!-- Card 1: Clip Gain & Loudness (dB) -->
+      <div class="vp-card" id="vp-clip-gain-card">
+        <div class="vp-card-header">
+          <span class="vp-card-title">1. Clip Gain / Loudness (dB)</span>
+          <span class="vp-highlight-pill" id="clip-gain-readout">0.0 dB (100%)</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:9.5px;color:var(--text-muted);min-width:34px">-24 dB</span>
+            <input type="range" id="clip-gain-slider" min="-24" max="18" step="0.5" value="0" style="flex:1;height:4px" title="Clip Gain in dB (-24 dB to +18 dB)">
+            <span style="font-size:9.5px;color:var(--text-muted);min-width:34px;text-align:right">+18 dB</span>
+          </div>
+          <div class="ratio-segmented" id="clip-gain-pills">
+            <button class="ratio-btn" data-gain="-12" title="-12 dB (25% volume)">-12dB</button>
+            <button class="ratio-btn" data-gain="-6" title="-6 dB (50% volume)">-6dB</button>
+            <button class="ratio-btn active" data-gain="0" title="0 dB (Original 100%)">0dB</button>
+            <button class="ratio-btn" data-gain="3" title="+3 dB (141% volume)">+3dB</button>
+            <button class="ratio-btn" data-gain="6" title="+6 dB (200% 2× volume)">+6dB</button>
+            <button class="ratio-btn" data-gain="12" title="+12 dB (400% 4× volume)">+12dB</button>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:2px">
+            <button type="button" class="tool-action-btn" id="btn-normalize-clip" style="flex:1;justify-content:center;font-size:10.5px" title="Auto-normalize speech: maximize volume to -0.5 dB without distortion">⚡ Auto-Normalize</button>
+            <button type="button" class="tool-action-btn" id="btn-reset-clip-gain" style="flex:1;justify-content:center;font-size:10.5px" title="Reset clip volume to 0.0 dB">↺ Reset (0 dB)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: 5-Band Parametric Voice EQ -->
+      <div class="vp-card">
+        <div class="vp-card-header">
+          <span class="vp-card-title">2. 5-Band Parametric EQ</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="eq-on" style="cursor:pointer">
+            <label for="eq-on" style="font-size:10px;color:var(--text-dim);cursor:pointer">Active</label>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <label style="font-size:10px;color:var(--text-dim)">Voice Preset</label>
+            <select id="eq-preset" class="sleek-select" style="font-size:10px;padding:2px 6px;height:22px">
+              <option value="flat">Flat Response</option>
+              <option value="clarity">Voice Clarity (Speech Focus)</option>
+              <option value="warmth">Warmth &amp; Body</option>
+              <option value="crisp">Crisp Diction &amp; Air</option>
+            </select>
+          </div>
+          <div style="position:relative;background:#05070c;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+            <canvas id="eq-canvas" height="110" style="width:100%;display:block;cursor:ns-resize" title="Drag dots vertically to adjust band gain"></canvas>
+          </div>
+          <div id="eq-sliders" style="display:flex;flex-direction:column;gap:2px;margin-top:2px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MODE 5: FFT SPECTROGRAM HEATMAP (SONOGRAM) ═══ -->
     <div id="panel-spectro-view" style="display:none">
       <div class="vp-card">
         <div class="vp-card-header">
@@ -2184,14 +2259,16 @@ function setVideoVisible(show) {
 
 function setEQVisible(show) {
   S.showEQ = !!show;
-  const el = document.getElementById('eq-section');
   const btn = document.getElementById('btn-toggle-eq');
-  if (el) {
-    el.classList.toggle('collapsed', !S.showEQ);
-    el.style.display = S.showEQ ? 'flex' : 'none';
-  }
   if (btn) btn.classList.toggle('active', S.showEQ);
-  if (S.showEQ) setTimeout(renderEQ, 50);
+  if (S.showEQ) {
+    const mainContent = document.getElementById('main-content');
+    if (mainContent?.classList.contains('studio-collapsed')) {
+      toggleStudioPanel();
+    }
+    setInspectorTab('gain');
+    setTimeout(renderEQ, 50);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -3405,7 +3482,9 @@ function renderVowelPanel() {
     const slowTimeDisp = document.getElementById('slow-time-display');
     if (slowTimeDisp) slowTimeDisp.textContent = 'Select a clip on timeline';
     updateClipGainUI(null);
+    updateNoiseUI(null);
     if (S.inspTab === 'spectro') renderSpectrogram();
+    else if (S.inspTab === 'gain') renderEQ();
     return;
   }
 
@@ -3413,6 +3492,7 @@ function renderVowelPanel() {
   const media = getMedia(clip.mediaId);
   if (clipName) clipName.textContent = media?.name || 'Untitled Clip';
   updateClipGainUI(clip);
+  updateNoiseUI(clip);
 
   // 1. Render Vowel Tab Waveform
   vowelCtx.clearRect(0, 0, W, H);
@@ -3503,6 +3583,8 @@ function renderVowelPanel() {
 
   if (S.inspTab === 'spectro') {
     renderSpectrogram();
+  } else if (S.inspTab === 'gain') {
+    renderEQ();
   }
 }
 
@@ -3691,12 +3773,11 @@ const eqCtx = eqEl.getContext('2d');
 let eqDragBand = -1;
 
 function renderEQ() {
+  if (!eqEl) return;
   const isLight = S.theme === 'light';
-  const sidebar = document.getElementById('eq-sidebar');
-  const sidebarW = sidebar ? sidebar.offsetWidth : 208;
-  const parentW = eqEl.parentElement ? eqEl.parentElement.clientWidth : 800;
-  const W = eqEl.width = Math.max(100, parentW - sidebarW);
-  const H = eqEl.height = 168;
+  const parentW = eqEl.parentElement ? eqEl.parentElement.clientWidth : 280;
+  const W = eqEl.width = Math.max(100, parentW);
+  const H = eqEl.height = 110;
   if (W <= 0) return;
 
   eqCtx.clearRect(0, 0, W, H);
@@ -3781,9 +3862,10 @@ function approxBiquad(b, f) {
 
 eqEl.addEventListener('mousedown', e => {
   const r = eqEl.getBoundingClientRect();
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const mx = (e.clientX - r.left) * (eqEl.width / (r.width || 1));
+  const my = (e.clientY - r.top) * (eqEl.height / (r.height || 1));
   const W = eqEl.width, H = eqEl.height;
-  let best = -1, bestD = 16;
+  let best = -1, bestD = 20;
   S.eqBands.forEach((b, i) => {
     const d = Math.hypot(mx - fxToX(b.freq, W), my - dbToY(b.gain, H));
     if (d < bestD) { bestD = d; best = i; }
@@ -3793,7 +3875,7 @@ eqEl.addEventListener('mousedown', e => {
 eqEl.addEventListener('mousemove', e => {
   if (eqDragBand < 0) return;
   const r = eqEl.getBoundingClientRect();
-  const my = e.clientY - r.top;
+  const my = (e.clientY - r.top) * (eqEl.height / (r.height || 1));
   S.eqBands[eqDragBand].gain = Math.round(Math.max(-12, Math.min(12, yToDb(my, eqEl.height))) * 2) / 2;
   updateEQFilters();
   buildEQBandSliders();
@@ -5256,6 +5338,415 @@ async function previewStretch() {
   src2.start();
   prevSrcs.push(src2);
   status('▶ Auditioning natural stretched sound…');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BACKGROUND NOISE REMOVER (DSP SPECTRAL SUBTRACTION & SILENCE GATE)
+// ─────────────────────────────────────────────────────────────────
+const NOISE_STATE = {
+  reductionDb: 18,
+  lowCut: true,
+  silenceGate: true,
+  deHiss: true,
+};
+
+function createFFT(size) {
+  const cosTable = new Float32Array(size / 2);
+  const sinTable = new Float32Array(size / 2);
+  for (let i = 0; i < size / 2; i++) {
+    const angle = -2 * Math.PI * i / size;
+    cosTable[i] = Math.cos(angle);
+    sinTable[i] = Math.sin(angle);
+  }
+  const bitRev = new Uint32Array(size);
+  let j = 0;
+  for (let i = 0; i < size; i++) {
+    bitRev[i] = j;
+    let bit = size >> 1;
+    while (j & bit) { j ^= bit; bit >>= 1; }
+    j ^= bit;
+  }
+  return {
+    size,
+    transform(real, imag, inverse) {
+      for (let i = 0; i < size; i++) {
+        const rev = bitRev[i];
+        if (rev > i) {
+          let tmp = real[i]; real[i] = real[rev]; real[rev] = tmp;
+          tmp = imag[i]; imag[i] = imag[rev]; imag[rev] = tmp;
+        }
+      }
+      for (let halfSize = 1; halfSize < size; halfSize <<= 1) {
+        const step = halfSize << 1;
+        const tableStep = (size / step) | 0;
+        for (let i = 0; i < size; i += step) {
+          for (let k = 0; k < halfSize; k++) {
+            const tableIdx = k * tableStep;
+            let c = cosTable[tableIdx];
+            let s = sinTable[tableIdx];
+            if (inverse) s = -s;
+            const re2 = real[i + k + halfSize];
+            const im2 = imag[i + k + halfSize];
+            const tr = c * re2 - s * im2;
+            const ti = c * im2 + s * re2;
+            real[i + k + halfSize] = real[i + k] - tr;
+            imag[i + k + halfSize] = imag[i + k] - ti;
+            real[i + k] += tr;
+            imag[i + k] += ti;
+          }
+        }
+      }
+      if (inverse) {
+        const invSize = 1 / size;
+        for (let i = 0; i < size; i++) {
+          real[i] *= invSize;
+          imag[i] *= invSize;
+        }
+      }
+    }
+  };
+}
+
+function removeBackgroundNoiseChannel(inputData, sampleRate, options = {}) {
+  const reductionDb = options.reductionDb !== undefined ? options.reductionDb : 18;
+  const lowCut = options.lowCut !== false;
+  const silenceGate = options.silenceGate !== false;
+  const deHiss = options.deHiss !== false;
+
+  const len = inputData.length;
+  if (len < 512) return new Float32Array(inputData);
+
+  const out = new Float32Array(len);
+  for (let i = 0; i < len; i++) out[i] = inputData[i];
+
+  // 1. 2nd-order Butterworth High-Pass Filter @ 80 Hz (Purges HVAC & Mains Hum)
+  if (lowCut) {
+    const fc = 80;
+    const K = Math.tan((Math.PI * fc) / sampleRate);
+    const K2 = K * K;
+    const sqrt2 = Math.SQRT2;
+    const norm = 1 + sqrt2 * K + K2;
+    const b0 = 1 / norm;
+    const b1 = -2 / norm;
+    const b2 = b0;
+    const a1 = (2 * (K2 - 1)) / norm;
+    const a2 = (1 - sqrt2 * K + K2) / norm;
+
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < len; i++) {
+      const x0 = out[i];
+      const y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = x0;
+      y2 = y1; y1 = y0;
+      out[i] = y0;
+    }
+  }
+
+  // 2. STFT Spectral Subtraction
+  const N = 512;
+  const hop = 128;
+  const numBins = (N >> 1) + 1;
+  const fft = createFFT(N);
+  const win = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    win[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / N));
+  }
+
+  const frameCount = Math.floor((len - N) / hop) + 1;
+  if (frameCount <= 0) return out;
+
+  const frameEnergies = new Float32Array(frameCount);
+  const powerFrames = [];
+  const realBuf = new Float32Array(N);
+  const imagBuf = new Float32Array(N);
+
+  for (let f = 0; f < frameCount; f++) {
+    const pos = f * hop;
+    for (let i = 0; i < N; i++) {
+      realBuf[i] = out[pos + i] * win[i];
+      imagBuf[i] = 0;
+    }
+    fft.transform(realBuf, imagBuf, false);
+    const powers = new Float32Array(numBins);
+    let totalE = 0;
+    for (let k = 0; k < numBins; k++) {
+      const p = realBuf[k] * realBuf[k] + imagBuf[k] * imagBuf[k];
+      powers[k] = p;
+      totalE += p;
+    }
+    powerFrames.push(powers);
+    frameEnergies[f] = totalE;
+  }
+
+  // Minimum statistics noise floor estimation (quietest 15% frames)
+  const sortedEnergies = Float32Array.from(frameEnergies).sort();
+  const noiseCutoffIdx = Math.max(1, Math.min(frameCount - 1, Math.floor(frameCount * 0.15)));
+  const noiseThreshold = sortedEnergies[noiseCutoffIdx];
+
+  const noisePower = new Float32Array(numBins);
+  let noiseCount = 0;
+  for (let f = 0; f < frameCount; f++) {
+    if (frameEnergies[f] <= noiseThreshold) {
+      const p = powerFrames[f];
+      for (let k = 0; k < numBins; k++) noisePower[k] += p[k];
+      noiseCount++;
+    }
+  }
+  if (noiseCount > 0) {
+    const inv = 1 / noiseCount;
+    for (let k = 0; k < numBins; k++) noisePower[k] *= inv;
+  }
+
+  // Over-subtraction parameters
+  const alpha = 1.0 + (reductionDb / 30.0) * 1.5;
+  const beta = Math.max(0.015, Math.pow(10, -reductionDb / 20));
+  const binHz = sampleRate / N;
+  const hissBin = Math.floor(7500 / binHz);
+
+  // Synthesis pass with Overlap-Add
+  const cleanOut = new Float32Array(len);
+  const winNorm = new Float32Array(len);
+
+  for (let f = 0; f < frameCount; f++) {
+    const pos = f * hop;
+    for (let i = 0; i < N; i++) {
+      realBuf[i] = out[pos + i] * win[i];
+      imagBuf[i] = 0;
+    }
+    fft.transform(realBuf, imagBuf, false);
+
+    const isSilence = silenceGate && (frameEnergies[f] < noiseThreshold * 1.8);
+    const gateGain = isSilence ? 0.04 : 1.0;
+
+    for (let k = 0; k < numBins; k++) {
+      const p = powerFrames[f][k];
+      const nP = noisePower[k];
+      const sub = p - alpha * nP;
+      const floor = beta * p;
+      let cleanedP = Math.max(sub, floor);
+
+      if (deHiss && k >= hissBin) {
+        cleanedP *= 0.35;
+      }
+
+      let gain = p > 1e-12 ? Math.sqrt(cleanedP / p) : 0;
+      gain *= gateGain;
+      if (gain > 1.0) gain = 1.0;
+
+      realBuf[k] *= gain;
+      imagBuf[k] *= gain;
+
+      if (k > 0 && k < N / 2) {
+        realBuf[N - k] = realBuf[k];
+        imagBuf[N - k] = -imagBuf[k];
+      }
+    }
+    imagBuf[0] = 0;
+    imagBuf[N / 2] = 0;
+
+    fft.transform(realBuf, imagBuf, true);
+
+    for (let i = 0; i < N; i++) {
+      cleanOut[pos + i] += realBuf[i] * win[i];
+      winNorm[pos + i] += win[i] * win[i];
+    }
+  }
+
+  for (let i = 0; i < len; i++) {
+    if (winNorm[i] > 1e-4) {
+      cleanOut[i] /= winNorm[i];
+    } else {
+      cleanOut[i] = out[i];
+    }
+  }
+
+  return cleanOut;
+}
+
+function denoiseAudioBuffer(inBuffer, options = {}) {
+  const nc = inBuffer.numberOfChannels;
+  const len = inBuffer.length;
+  const sr = inBuffer.sampleRate;
+  const outBuffer = actx.createBuffer(nc, len, sr);
+  for (let ch = 0; ch < nc; ch++) {
+    const inData = inBuffer.getChannelData(ch);
+    const cleanedData = removeBackgroundNoiseChannel(inData, sr, options);
+    outBuffer.copyToChannel(cleanedData, ch);
+  }
+  return outBuffer;
+}
+
+function getClipSliceBuffer(clip, media) {
+  if (!media?.buffer) return null;
+  const sr = media.buffer.sampleRate;
+  const nc = media.buffer.numberOfChannels;
+  const startSample = Math.max(0, Math.floor(clip.offsetInMedia * sr));
+  const numSamples = Math.min(media.buffer.length - startSample, Math.floor(clip.duration * sr));
+  if (numSamples <= 0) return null;
+  const sliceBuf = actx.createBuffer(nc, numSamples, sr);
+  for (let ch = 0; ch < nc; ch++) {
+    const fullData = media.buffer.getChannelData(ch);
+    const sliceData = fullData.subarray(startSample, startSample + numSamples);
+    sliceBuf.copyToChannel(sliceData, ch);
+  }
+  return sliceBuf;
+}
+
+async function auditionNoiseRemoval() {
+  const sel = getSelClip();
+  if (!sel) return alert('Select a clip on the timeline first');
+  const { clip } = sel;
+  const media = getMedia(clip.mediaId);
+  if (!media?.buffer) return;
+
+  const sliceBuf = getClipSliceBuffer(clip, media);
+  if (!sliceBuf) return;
+
+  showProc(`Auditioning noise reduction (${NOISE_STATE.reductionDb} dB)…`, 35);
+  await pause(20);
+
+  const cleanBuf = denoiseAudioBuffer(sliceBuf, NOISE_STATE);
+  hideProc();
+
+  ensureCtx();
+  stopPreview();
+  const srcNode = actx.createBufferSource();
+  srcNode.buffer = cleanBuf;
+  srcNode.connect(eqInput());
+  srcNode.start();
+  prevSrcs.push(srcNode);
+  status(`▶ Auditioning denoised sound (-${NOISE_STATE.reductionDb} dB, low-cut: ${NOISE_STATE.lowCut ? 'on' : 'off'})…`);
+}
+
+async function applyNoiseRemoval() {
+  const sel = getSelClip();
+  if (!sel) return alert('Select a clip on the timeline first');
+  const { clip } = sel;
+  const media = getMedia(clip.mediaId);
+  if (!media?.buffer) return;
+
+  const sliceBuf = getClipSliceBuffer(clip, media);
+  if (!sliceBuf) return;
+
+  showProc(`Removing background noise (${NOISE_STATE.reductionDb} dB)…`, 40);
+  await pause(30);
+
+  const cleanBuf = denoiseAudioBuffer(sliceBuf, NOISE_STATE);
+
+  showProc('Computing waveform…', 85);
+  const peaks = computePeaks(cleanBuf, PEAK_RES);
+  const newMedia = {
+    id: S.nextMediaId++,
+    name: `${media.name} [Denoised -${NOISE_STATE.reductionDb}dB]`,
+    buffer: cleanBuf,
+    duration: cleanBuf.duration,
+    sampleRate: cleanBuf.sampleRate,
+    peaks,
+    type: 'audio',
+    videoUrl: null,
+    color: media.color,
+  };
+  S.mediaFiles.push(newMedia);
+
+  snapshot();
+  clip.mediaId = newMedia.id;
+  clip.offsetInMedia = 0;
+  clip.duration = cleanBuf.duration;
+
+  hideProc();
+  renderMediaLibrary();
+  renderTimeline();
+  renderVowelPanel();
+  status(`✓ Background noise removed: "${newMedia.name}"`);
+}
+
+async function exportDenoisedDirect() {
+  const sel = getSelClip();
+  if (!sel) return alert('Select a clip on the timeline first');
+  const { clip } = sel;
+  const media = getMedia(clip.mediaId);
+  if (!media?.buffer) return;
+
+  const sliceBuf = getClipSliceBuffer(clip, media);
+  if (!sliceBuf) return;
+
+  showProc(`Rendering denoised audio (${NOISE_STATE.reductionDb} dB)…`, 40);
+  await pause(20);
+
+  const cleanBuf = denoiseAudioBuffer(sliceBuf, NOISE_STATE);
+  hideProc();
+  if (!cleanBuf) return;
+
+  const name = `${media.name || 'clip'}_denoised_${NOISE_STATE.reductionDb}dB`;
+  await exportBufferDirectly(cleanBuf, name, 'mp3');
+}
+
+function estimateNoiseFloorDb(channelData) {
+  if (!channelData || channelData.length < 512) return -60;
+  const frameSize = 512;
+  const numFrames = Math.floor(channelData.length / frameSize);
+  if (numFrames === 0) return -60;
+  const rmsArr = [];
+  for (let f = 0; f < numFrames; f++) {
+    let sum = 0;
+    const off = f * frameSize;
+    for (let i = 0; i < frameSize; i++) {
+      const s = channelData[off + i];
+      sum += s * s;
+    }
+    rmsArr.push(Math.sqrt(sum / frameSize));
+  }
+  rmsArr.sort((a, b) => a - b);
+  const idx = Math.max(0, Math.floor(rmsArr.length * 0.12));
+  const noiseRms = Math.max(1e-5, rmsArr[idx]);
+  return Math.round(20 * Math.log10(noiseRms) * 10) / 10;
+}
+
+function updateNoiseUI(clip) {
+  const readout = document.getElementById('noise-floor-readout');
+  const btnAudition = document.getElementById('btn-audition-noise');
+  const btnApply = document.getElementById('btn-apply-noise');
+  const btnExport = document.getElementById('btn-export-noise-direct');
+
+  if (!clip) {
+    if (readout) readout.textContent = 'Noise Floor: — (No clip selected)';
+    if (btnAudition) btnAudition.disabled = true;
+    if (btnApply) btnApply.disabled = true;
+    if (btnExport) btnExport.disabled = true;
+    return;
+  }
+
+  if (btnAudition) btnAudition.disabled = false;
+  if (btnApply) btnApply.disabled = false;
+  if (btnExport) btnExport.disabled = false;
+
+  const media = getMedia(clip.mediaId);
+  if (media?.buffer && readout) {
+    const ch0 = media.buffer.getChannelData(0);
+    const sr = media.buffer.sampleRate;
+    const start = Math.floor(clip.offsetInMedia * sr);
+    const len = Math.floor(clip.duration * sr);
+    const slice = ch0.subarray(start, Math.min(ch0.length, start + len));
+    const nf = estimateNoiseFloorDb(slice);
+    readout.innerHTML = `Noise Floor: <strong style="color:var(--amber)">${nf} dBFS</strong> (Ready to clean)`;
+  }
+}
+
+function setNoiseSuppressionDb(db) {
+  NOISE_STATE.reductionDb = Math.max(6, Math.min(30, Math.round(db)));
+  const slider = document.getElementById('noise-suppress-slider');
+  if (slider) slider.value = NOISE_STATE.reductionDb;
+  const pill = document.getElementById('noise-amount-readout');
+  let label = 'Custom';
+  if (NOISE_STATE.reductionDb <= 10) label = 'Light';
+  else if (NOISE_STATE.reductionDb <= 18) label = 'Standard';
+  else if (NOISE_STATE.reductionDb <= 24) label = 'Heavy';
+  else label = 'Max';
+  if (pill) pill.textContent = `${NOISE_STATE.reductionDb} dB (${label})`;
+
+  document.querySelectorAll('#noise-presets-pills .ratio-btn').forEach(btn => {
+    btn.classList.toggle('active', +btn.dataset.ndb === NOISE_STATE.reductionDb);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -7595,20 +8086,35 @@ function setInspectorTab(tab) {
   S.inspTab = tab;
   const slowBtn = document.getElementById('tab-slow-btn');
   const vowelBtn = document.getElementById('tab-vowel-btn');
+  const noiseBtn = document.getElementById('tab-noise-btn');
+  const gainBtn = document.getElementById('tab-gain-btn');
   const spectroBtn = document.getElementById('tab-spectro-btn');
+
   const slowView = document.getElementById('panel-slowdown-view');
   const vowelView = document.getElementById('panel-vowel-view');
+  const noiseView = document.getElementById('panel-noise-view');
+  const gainView = document.getElementById('panel-gain-view');
   const spectroView = document.getElementById('panel-spectro-view');
 
   if (slowBtn) slowBtn.classList.toggle('active', tab === 'slow');
   if (vowelBtn) vowelBtn.classList.toggle('active', tab === 'vowel');
+  if (noiseBtn) noiseBtn.classList.toggle('active', tab === 'noise');
+  if (gainBtn) gainBtn.classList.toggle('active', tab === 'gain');
   if (spectroBtn) spectroBtn.classList.toggle('active', tab === 'spectro');
+
   if (slowView) slowView.style.display = tab === 'slow' ? 'block' : 'none';
   if (vowelView) vowelView.style.display = tab === 'vowel' ? 'block' : 'none';
+  if (noiseView) noiseView.style.display = tab === 'noise' ? 'block' : 'none';
+  if (gainView) gainView.style.display = tab === 'gain' ? 'block' : 'none';
   if (spectroView) spectroView.style.display = tab === 'spectro' ? 'block' : 'none';
+
+  const eqToggleBtn = document.getElementById('btn-toggle-eq');
+  if (eqToggleBtn) eqToggleBtn.classList.toggle('active', tab === 'gain');
 
   if (tab === 'spectro') {
     requestAnimationFrame(() => renderSpectrogram());
+  } else if (tab === 'gain') {
+    requestAnimationFrame(() => renderEQ());
   }
 
   renderVowelPanel();
@@ -7793,7 +8299,31 @@ document.getElementById('btn-theme-toggle')?.addEventListener('click', toggleThe
 // Inspector tab switcher buttons
 document.getElementById('tab-slow-btn')?.addEventListener('click', () => setInspectorTab('slow'));
 document.getElementById('tab-vowel-btn')?.addEventListener('click', () => setInspectorTab('vowel'));
+document.getElementById('tab-noise-btn')?.addEventListener('click', () => setInspectorTab('noise'));
+document.getElementById('tab-gain-btn')?.addEventListener('click', () => setInspectorTab('gain'));
 document.getElementById('tab-spectro-btn')?.addEventListener('click', () => setInspectorTab('spectro'));
+
+// Noise suppression slider & presets
+document.getElementById('noise-suppress-slider')?.addEventListener('input', e => setNoiseSuppressionDb(+e.target.value));
+document.getElementById('noise-presets-pills')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-ndb]');
+  if (!btn) return;
+  setNoiseSuppressionDb(+btn.dataset.ndb);
+});
+document.getElementById('noise-lowcut')?.addEventListener('change', e => {
+  NOISE_STATE.lowCut = e.target.checked;
+});
+document.getElementById('noise-silence-gate')?.addEventListener('change', e => {
+  NOISE_STATE.silenceGate = e.target.checked;
+});
+document.getElementById('noise-dehiss')?.addEventListener('change', e => {
+  NOISE_STATE.deHiss = e.target.checked;
+});
+
+// Noise action buttons
+document.getElementById('btn-audition-noise')?.addEventListener('click', auditionNoiseRemoval);
+document.getElementById('btn-apply-noise')?.addEventListener('click', applyNoiseRemoval);
+document.getElementById('btn-export-noise-direct')?.addEventListener('click', exportDenoisedDirect);
 
 // Blending scope toggle buttons
 document.getElementById('scope-btn-whole')?.addEventListener('click', () => setSlowScope('whole'));
@@ -9387,6 +9917,7 @@ async function init() {
   setInspectorTab(S.inspTab || 'slow');
   setSlowScope(S.slowScope || 'whole');
   setSlowSpeed(S.slowSpeed || 0.60);
+  setNoiseSuppressionDb(NOISE_STATE.reductionDb || 18);
   const profSelect = document.getElementById('slow-profile-select');
   if (profSelect) profSelect.value = S.slowProfile || 'psola';
   const descEl = document.getElementById('slow-profile-desc');
