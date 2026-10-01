@@ -9889,6 +9889,142 @@ ro.observe(document.getElementById('vp-waveform-wrap'));
 ro.observe(document.getElementById('eq-section'));
 
 // ─────────────────────────────────────────────────────────────────
+// GOOGLE DRIVE INTEGRATION (CHROME EXTENSION RUNTIME BRIDGE)
+// ─────────────────────────────────────────────────────────────────
+let activeDriveFile = null;
+
+function showDriveBanner(fileName, fileId) {
+  let b = document.getElementById('drive-integration-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'drive-integration-banner';
+    b.style.cssText = 'background:linear-gradient(90deg, #1e3a8a 0%, #1e1b4b 100%);padding:8px 16px;border-bottom:1px solid #3b82f6;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#f8fafc;z-index:9999;flex-shrink:0;';
+    const topBar = document.getElementById('transport-bar') || document.body.firstChild;
+    document.body.insertBefore(b, topBar.nextSibling);
+  }
+  b.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:16px">☁️</span>
+      <span><strong>Editing from Google Drive:</strong> <span style="color:#93c5fd;font-family:var(--font-mono);font-weight:600">${fileName}</span></span>
+      <span style="font-size:10.5px;color:#94a3b8;margin-left:8px">✓ Loaded on Track 1 · Edit speed, vowels, noise removal, EQ, or volume below</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="btn-drive-export-replace" style="background:#2563eb;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 1px 4px rgba(0,0,0,0.3)">
+        ⬇ Export for Drive Replacement
+      </button>
+      <a href="https://drive.google.com/file/d/${fileId}/view" target="_blank" style="color:#60a5fa;text-decoration:none;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;background:rgba(37,99,235,0.25);padding:3px 10px;border-radius:4px;border:1px solid rgba(59,130,246,0.3)">
+        🔗 Open Original in Drive
+      </a>
+      <button onclick="this.parentElement.parentElement.remove()" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:14px;padding:0 4px" title="Dismiss banner">✕</button>
+    </div>
+  `;
+
+  b.querySelector('#btn-drive-export-replace')?.addEventListener('click', () => {
+    quickExportDriveReplacement();
+  });
+}
+
+async function quickExportDriveReplacement() {
+  if (!activeDriveFile) {
+    openExportModal();
+    return;
+  }
+  const baseName = activeDriveFile.fileName.replace(/\.[^/.]+$/, '');
+  const extMatch = activeDriveFile.fileName.match(/\.[^/.]+$/);
+  const ext = (extMatch ? extMatch[0] : '.mp3').replace('.', '').toLowerCase();
+  const format = ['wav', 'mp3'].includes(ext) ? ext : 'mp3';
+
+  openExportModal();
+  const nameInput = document.getElementById('export-filename');
+  if (nameInput) nameInput.value = baseName;
+  const fmtSelect = document.getElementById('export-format');
+  if (fmtSelect) fmtSelect.value = format;
+
+  status(`💡 Tip: After downloading "${activeDriveFile.fileName}", drag it into your Google Drive folder to update the file in-place!`);
+}
+
+async function checkAndLoadDriveAudio(fileId, fileName) {
+  ensureCtx();
+  showProc(`Importing "${fileName}" from Google Drive…`, 30);
+  try {
+    let arrayBuf = null;
+
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      try {
+        const resp = await new Promise((res) => {
+          chrome.runtime.sendMessage({ action: 'GET_AUDIO_BUFFER', fileId }, r => res(r));
+        });
+        if (resp && resp.success && resp.data && resp.data.buffer) {
+          arrayBuf = resp.data.buffer;
+        }
+      } catch (e) {
+        console.warn('[Studio] Could not get buffer from extension storage:', e);
+      }
+    }
+
+    if (!arrayBuf) {
+      showProc(`Downloading "${fileName}" from Google Drive…`, 45);
+      const dlUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      const res = await fetch(dlUrl, { credentials: 'include' });
+      if (!res.ok) throw new Error(`Google Drive returned status ${res.status}`);
+      arrayBuf = await res.arrayBuffer();
+    }
+
+    showProc('Decoding speech audio…', 80);
+    const audioBuf = await actx.decodeAudioData(arrayBuf.slice(0));
+
+    activeDriveFile = { fileId, fileName, audioBuf };
+
+    const media = {
+      id: S.nextMediaId++,
+      name: fileName,
+      buffer: audioBuf,
+      duration: audioBuf.duration,
+      sampleRate: audioBuf.sampleRate,
+      peaks: computePeaks(audioBuf, PEAK_RES),
+      type: 'audio',
+      videoUrl: null,
+      color: CLIP_COLORS[0],
+      driveFileId: fileId
+    };
+    S.mediaFiles.push(media);
+
+    if (!S.tracks.length) addTrack('Track 1');
+    const track = S.tracks[0];
+    const clip = {
+      id: S.nextClipId++,
+      trackId: track.id,
+      mediaId: media.id,
+      startTime: 0,
+      offsetInMedia: 0,
+      duration: audioBuf.duration,
+      color: media.color,
+      gain: 1.0,
+      gainDb: 0.0
+    };
+    track.clips.push(clip);
+    S.selectedClipId = clip.id;
+
+    snapshot();
+    hideProc();
+
+    renderMediaLibrary();
+    renderTrackHeaders();
+    renderTimeline();
+    renderVowelPanel();
+    updateTimecode();
+    updateStatusBar();
+
+    showDriveBanner(fileName, fileId);
+    status(`✓ "${fileName}" imported from Google Drive · Ready to edit`);
+  } catch (err) {
+    hideProc();
+    console.error('[Studio] Drive import error:', err);
+    status(`⚠️ Drive import notice: ${err.message}`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────────
 async function init() {
@@ -9938,6 +10074,15 @@ async function init() {
   if (trkSlider) trkSlider.value = TRACK_H;
   const hBtn = document.getElementById('btn-track-height');
   if (hBtn) hBtn.textContent = `↕ ${TRACK_H}px`;
+
+  // Check for Google Drive import parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const driveFileId = urlParams.get('fileId');
+  const driveFileName = urlParams.get('name') ? decodeURIComponent(urlParams.get('name')) : 'Google_Drive_Audio.mp3';
+
+  if (driveFileId) {
+    await checkAndLoadDriveAudio(driveFileId, driveFileName);
+  }
 }
 
 init();
