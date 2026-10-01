@@ -4,15 +4,16 @@ Edit audio files directly from Google Drive folders with one click!
 
 ## ✨ What this Extension Does
 1. **Google Drive Integration**:
-   - Whenever you preview any audio file (`.mp3`, `.wav`, `.m4a`, etc.) in Google Drive, a dedicated **"🎛️ Edit in IXR Studio"** button appears in the Drive preview bar.
-   - A floating quick-action pill **"🎛️ IXR Audio Studio"** also appears in the bottom-right corner of Google Drive. When you click or select any audio file in your Drive folders, it immediately detects it.
+   - Whenever you preview any audio file (`.mp3`, `.wav`, `.m4a`, etc.) in Google Drive, a clean **"🎛️ Edit in IXR Studio"** button appears in the Drive preview bar.
    - Right-click any Google Drive audio link or file -> select **"🎛️ Edit in IXR Audio Studio"**.
+   - Zero-lag, high-performance architecture: Does not slow down or freeze Google Drive folders or page navigation.
 2. **Instant Studio Workstation**:
    - Automatically downloads the audio file using your active Google Drive browser session.
    - Immediately decodes and imports the file onto Track 1 in **IXR Audio Studio**.
-   - Lets you perform phonics blending, vowel sustain/prolongation, dB loudness adjustment, fast/slow pitch-preserving speed changes, spectrogram analysis, and acoustic glitch purging.
+   - Lets you perform background noise removal, phonics blending, vowel sustain/prolongation, dB loudness adjustment, 5-band EQ, speed changes, and spectrogram analysis.
 3. **Save Back to Drive**:
-   - In the Export dialog, click **"Use Original Name"** to export with the matching filename so you can easily update or replace the file in your Google Drive folder.
+   - In IXR Studio, click **"⬇ Export for Drive Replacement"** to download with the exact matching filename.
+   - Drop the downloaded file back into your Google Drive folder: Google Drive automatically replaces the file in-place and preserves the exact link!
 
 ---
 
