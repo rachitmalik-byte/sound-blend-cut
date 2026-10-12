@@ -1734,11 +1734,11 @@ input[type=text], input[type=number] {
           <span style="font-size:11px;color:var(--text-dim);font-weight:600">Export Names:</span>
           <select id="tc-naming-mode" style="font-size:11px;padding:3px 7px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer" title="Choose how exported files are named">
             <option value="exact" selected>Exact Uploaded Name ({name}.ext)</option>
-            <option value="suffix">Add Suffix ({name}_clean.ext)</option>
-            <option value="prefix">Add Prefix (clean_{name}.ext)</option>
+            <option value="suffix">Add Suffix ({name} (clean).ext)</option>
+            <option value="prefix">Add Prefix (clean {name}.ext)</option>
             <option value="custom">Custom Suffix...</option>
           </select>
-          <input type="text" id="tc-naming-custom" placeholder="_clean" value="_clean" style="display:none;width:80px;font-size:11px;padding:2px 6px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm)">
+          <input type="text" id="tc-naming-custom" placeholder=" (clean)" value=" (clean)" style="display:none;width:80px;font-size:11px;padding:2px 6px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm)">
         </div>
 
         <span id="tc-status-msg" style="font-size:11px;color:var(--text-muted)">0 files loaded</span>
@@ -5677,7 +5677,7 @@ async function exportDenoisedDirect() {
   hideProc();
   if (!cleanBuf) return;
 
-  const name = `${media.name || 'clip'}_denoised_${NOISE_STATE.reductionDb}dB`;
+  const name = `${media.name || 'clip'} (denoised ${NOISE_STATE.reductionDb}dB)`;
   await exportBufferDirectly(cleanBuf, name, 'mp3');
 }
 
@@ -7986,7 +7986,7 @@ document.getElementById('btn-export-slow-direct')?.addEventListener('click', asy
   const nb = renderSlowdownBuffer(speed, scope, profile);
   hideProc();
   if (!nb) return;
-  const name = `${media ? media.name : 'clip'}_${speed.toFixed(2)}x_slowed`;
+  const name = `${media ? media.name : 'clip'} (${speed.toFixed(2)}x slowed)`;
   await exportBufferDirectly(nb, name, 'mp3');
 });
 
@@ -8019,7 +8019,7 @@ document.getElementById('btn-export-vowel-direct')?.addEventListener('click', as
   const stretchedVowel = sustainVowelCore(actx, vowelBuffer, ratio);
   const newBuf = spliceSeamlessBuffer(actx, media.buffer, clipOff, vStart, vEnd, clipEnd, stretchedVowel);
   hideProc();
-  const name = `${media.name}_${ratio}x_vowel`;
+  const name = `${media.name} (${ratio}x vowel)`;
   await exportBufferDirectly(newBuf, name, 'mp3');
 });
 
@@ -8418,44 +8418,43 @@ function getActiveClipMediaName() {
 function getSmartExportBaseName() {
   const rawName = getActiveClipMediaName();
   if (rawName) {
-    let clean = sanitizeFilename(rawName);
-    // If rawName didn't already record a vowel stretch or speed tag, check current inspector state:
-    if (!clean.includes('vowel') && !clean.includes('speed') && !clean.includes('prolonged')) {
-      if (S.vowelStart !== null && S.vowelEnd !== null) {
-        clean += `_prolonged_${S.stretchRatio}x`;
-      } else {
-        clean += `_edited`;
-      }
-    }
-    return clean;
+    return sanitizeFilename(rawName);
   }
-  return 'IXR_prolonged_vowel';
+  return 'IXR export';
 }
 
 function getNextUniqueFilename(base) {
   const cleanBase = sanitizeFilename(base);
+  if (!cleanBase) return 'IXR export';
+  if (!exportedFilenames.has(cleanBase)) {
+    return cleanBase;
+  }
   if (!exportCounters[cleanBase]) {
     exportCounters[cleanBase] = 1;
-  } else {
-    exportCounters[cleanBase]++;
   }
-  let candidate = `${cleanBase}_${String(exportCounters[cleanBase]).padStart(2, '0')}`;
+  exportCounters[cleanBase]++;
+  let candidate = `${cleanBase} (${exportCounters[cleanBase]})`;
   while (exportedFilenames.has(candidate)) {
     exportCounters[cleanBase]++;
-    candidate = `${cleanBase}_${String(exportCounters[cleanBase]).padStart(2, '0')}`;
+    candidate = `${cleanBase} (${exportCounters[cleanBase]})`;
   }
   return candidate;
 }
 
 function incrementFilename(name) {
-  const match = name.match(/^(.*?)(?:_(\d+))?$/);
-  if (match && match[2]) {
-    const prefix = match[1];
-    const curNum = parseInt(match[2], 10);
-    const width = Math.max(match[2].length, 2);
-    return `${prefix}_${String(curNum + 1).padStart(width, '0')}`;
+  const pMatch = name.match(/^(.*?)\s*\((\d+)\)$/);
+  if (pMatch) {
+    const prefix = pMatch[1];
+    const curNum = parseInt(pMatch[2], 10);
+    return `${prefix} (${curNum + 1})`;
   }
-  return `${name}_02`;
+  const uMatch = name.match(/^(.*?)(?:_(\d+))$/);
+  if (uMatch) {
+    const prefix = uMatch[1];
+    const curNum = parseInt(uMatch[2], 10);
+    return `${prefix} (${curNum + 1})`;
+  }
+  return `${name} (2)`;
 }
 
 function getTimestampStr() {
@@ -8578,14 +8577,14 @@ document.getElementById('tag-add-counter').addEventListener('click', () => {
 
 document.getElementById('tag-add-time').addEventListener('click', () => {
   const inp = document.getElementById('exp-filename');
-  const clean = inp.value.replace(/_\d{6}$/, '');
-  inp.value = `${clean}_${getTimestampStr()}`;
+  const clean = inp.value.replace(/\s*\(\d{6}\)$/, '').replace(/_\d{6}$/, '');
+  inp.value = `${clean} (${getTimestampStr()})`;
 });
 
 document.getElementById('tag-add-rand').addEventListener('click', () => {
   const inp = document.getElementById('exp-filename');
-  const clean = inp.value.replace(/_[a-f0-9]{4}$/, '');
-  inp.value = `${clean}_${getRandomIdStr()}`;
+  const clean = inp.value.replace(/\s*\([a-f0-9]{4}\)$/, '').replace(/_[a-f0-9]{4}$/, '');
+  inp.value = `${clean} (${getRandomIdStr()})`;
 });
 
 document.getElementById('tag-reset-orig').addEventListener('click', () => {
@@ -8703,8 +8702,8 @@ function getTCExportFilename(item, fmt) {
   const customSuffix = document.getElementById('tc-naming-custom')?.value || '';
   const baseName = sanitizeFilename(item.name);
   if (namingMode === 'exact') return `${baseName}.${fmt}`;
-  if (namingMode === 'suffix') return `${baseName}_clean.${fmt}`;
-  if (namingMode === 'prefix') return `clean_${baseName}.${fmt}`;
+  if (namingMode === 'suffix') return `${baseName} (clean).${fmt}`;
+  if (namingMode === 'prefix') return `clean ${baseName}.${fmt}`;
   if (namingMode === 'custom') return `${baseName}${customSuffix}.${fmt}`;
   return `${baseName}.${fmt}`;
 }
@@ -8717,11 +8716,11 @@ function getUniqueZipFilename(baseFilename, usedNames) {
   const dotIdx = baseFilename.lastIndexOf('.');
   const name = dotIdx !== -1 ? baseFilename.slice(0, dotIdx) : baseFilename;
   const ext = dotIdx !== -1 ? baseFilename.slice(dotIdx) : '';
-  let count = 1;
-  while (usedNames.has(`${name}_${count}${ext}`)) {
+  let count = 2;
+  while (usedNames.has(`${name} (${count})${ext}`)) {
     count++;
   }
-  const unique = `${name}_${count}${ext}`;
+  const unique = `${name} (${count})${ext}`;
   usedNames.add(unique);
   return unique;
 }
@@ -8931,7 +8930,7 @@ document.getElementById('btn-tc-download-zip')?.addEventListener('click', async 
   const zipBlob = generateZipBlob(filesForZip);
   hideProc();
 
-  const zipName = `Cleaned_Audio_Batch_${getTimestampStr()}.zip`;
+  const zipName = `Cleaned Audio Batch (${getTimestampStr()}).zip`;
   const url = URL.createObjectURL(zipBlob);
   const a = document.createElement('a');
   a.href = url;
