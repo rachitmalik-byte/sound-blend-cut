@@ -6266,6 +6266,11 @@ function generateZipBlob(files) {
   let offset = 0;
   const textEncoder = new TextEncoder();
 
+  // Current DOS time and date for valid file timestamps inside the ZIP
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
   for (const f of files) {
     const nameBytes = textEncoder.encode(f.name);
     const dataBytes = f.data instanceof Uint8Array ? f.data : new Uint8Array(f.data);
@@ -6277,10 +6282,10 @@ function generateZipBlob(files) {
     const lv = new DataView(localHdr.buffer);
     lv.setUint32(0, 0x04034b50, true);
     lv.setUint16(4, 20, true);
-    lv.setUint16(6, 0, true);
+    lv.setUint16(6, 0x0800, true); // Bit 11: Language Encoding Flag (UTF-8 / EFS)
     lv.setUint16(8, 0, true); // Store (no compression)
-    lv.setUint16(10, 0, true);
-    lv.setUint16(12, 0, true);
+    lv.setUint16(10, dosTime, true);
+    lv.setUint16(12, dosDate, true);
     lv.setUint32(14, crc, true);
     lv.setUint32(18, size, true);
     lv.setUint32(22, size, true);
@@ -6297,10 +6302,10 @@ function generateZipBlob(files) {
     cv.setUint32(0, 0x02014b50, true);
     cv.setUint16(4, 20, true);
     cv.setUint16(6, 20, true);
-    cv.setUint16(8, 0, true);
+    cv.setUint16(8, 0x0800, true); // Bit 11: Language Encoding Flag (UTF-8 / EFS)
     cv.setUint16(10, 0, true);
-    cv.setUint16(12, 0, true);
-    cv.setUint16(14, 0, true);
+    cv.setUint16(12, dosTime, true);
+    cv.setUint16(14, dosDate, true);
     cv.setUint32(16, crc, true);
     cv.setUint32(20, size, true);
     cv.setUint32(24, size, true);
@@ -8364,14 +8369,9 @@ const exportCounters = {};
 function sanitizeFilename(str) {
   if (!str) return 'IXR_export';
   let s = str
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '') // remove forbidden characters
-    .replace(/[\[\(\{]/g, '_')
-    .replace(/[\]\)\}]/g, '')
-    .replace(/×/g, 'x')
-    .replace(/\s+/g, '_')
-    .replace(/__+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .trim();
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '') // remove illegal filesystem characters
+    .trim()
+    .replace(/[. ]+$/, ''); // no trailing period or space (Windows restriction)
   if (!s) s = 'IXR_export';
   return s;
 }
