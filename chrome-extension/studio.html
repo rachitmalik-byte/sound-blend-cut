@@ -351,7 +351,8 @@ html, body {
 #tl-right-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 #ruler-canvas { height: var(--ruler-h); display: block; width: 100%; cursor: pointer; flex-shrink: 0; }
 #tl-scroll-wrap { flex: 1; overflow: auto; position: relative; background: var(--canvas-bg); }
-#timeline-canvas { display: block; cursor: default; }
+#tl-scroll-spacer { position: absolute; top: 0; left: 0; height: 1px; width: 1px; pointer-events: none; visibility: hidden; }
+#timeline-canvas { position: sticky; left: 0; display: block; cursor: default; z-index: 2; }
 
 /* Track Headers */
 .track-header {
@@ -1062,9 +1063,10 @@ input[type=text], input[type=number] {
         <!-- View & Timeline Zoom Pod -->
         <div class="tool-group">
           <button class="tool-btn" id="btn-zoom-out" title="Zoom Out [-]">−</button>
-          <input type="range" id="zoom-slider" min="20" max="800" value="100" style="width:68px" title="Zoom Timeline">
+          <input type="range" id="zoom-slider" min="0.2" max="800" step="0.2" value="100" style="width:68px" title="Zoom Timeline">
           <button class="tool-btn" id="btn-zoom-in" title="Zoom In [+]">+</button>
-          <span id="zoom-label" class="meta-tag" style="min-width:38px">100px/s</span>
+          <button class="tool-action-btn" id="btn-zoom-fit" title="Zoom to Fit Entire Timeline (Shift+F)" style="font-size:11px;font-weight:700;padding:2px 7px">Fit</button>
+          <span id="zoom-label" class="meta-tag" style="min-width:44px">100px/s</span>
           <button class="tool-action-btn" id="btn-track-height" title="Cycle Track Height Presets: 82px → 125px → 180px → 260px">↕ 82px</button>
           <!-- Hidden inputs for backward-compatibility with track height handlers -->
           <input type="range" id="track-height-slider" min="55" max="320" value="82" step="5" style="display:none">
@@ -1114,6 +1116,7 @@ input[type=text], input[type=number] {
         <div id="tl-right-col">
           <canvas id="ruler-canvas"></canvas>
           <div id="tl-scroll-wrap">
+            <div id="tl-scroll-spacer"></div>
             <canvas id="timeline-canvas"></canvas>
           </div>
         </div>
@@ -1556,6 +1559,7 @@ input[type=text], input[type=number] {
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Del</kbd> / <kbd class="sleek-kbd">Backspace</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Delete selected clip</td></tr>
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Ctrl+Z</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Undo last action</td></tr>
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Ctrl+Y</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Redo action</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Shift+F</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Zoom to fit entire timeline</td></tr>
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">Shift+E</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Open Export dialog</td></tr>
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">V</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Toggle Video preview</td></tr>
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0"><kbd class="sleek-kbd">E</kbd></td><td style="padding:6px 0;color:var(--text-dim)">Toggle 5-Band EQ drawer</td></tr>
@@ -2037,7 +2041,7 @@ input[type=text], input[type=number] {
 let TRACK_H   = 82;
 const RULER_H   = 24;
 const PEAK_RES  = 2000;   // peak samples per media file
-const MIN_ZOOM  = 20;
+const MIN_ZOOM  = 0.2;
 const MAX_ZOOM  = 900;
 const CLIP_COLORS = ['#4a90e2','#3fc880','#e2904a','#a04ae2','#e24a9e','#4ae2d4','#c8c84a','#e24a4a'];
 
@@ -2337,6 +2341,22 @@ async function saveSessionToStorage() {
       for (const m of S.mediaFiles) {
         if (!m.buffer) continue;
         const nc = m.buffer.numberOfChannels;
+        const sizeMb = (m.duration * (m.sampleRate || m.buffer.sampleRate) * nc * 4) / (1024 * 1024);
+        if (sizeMb > 80) {
+          mediaStore.put({
+            id: m.id,
+            name: m.name,
+            type: m.type,
+            duration: m.duration,
+            sampleRate: m.sampleRate || m.buffer.sampleRate,
+            numberOfChannels: nc,
+            peaks: m.peaks,
+            color: m.color,
+            videoUrl: m.videoUrl || null,
+            isLargeInMemory: true
+          });
+          continue;
+        }
         const channels = [];
         for (let ch = 0; ch < nc; ch++) {
           channels.push(m.buffer.getChannelData(ch));
@@ -3040,19 +3060,24 @@ function stopPreview() {
 // ─────────────────────────────────────────────────────────────────
 function computePeaks(ab, res) {
   const ch = ab.getChannelData(0), len = ch.length;
-  const bsz = Math.max(1, Math.floor(len / res));
-  const out = new Float32Array(res);
-  for (let i = 0; i < res; i++) {
+  const targetRes = res || Math.min(10000, Math.max(2000, Math.floor(ab.duration * 20)));
+  const bsz = Math.max(1, Math.floor(len / targetRes));
+  const out = new Float32Array(targetRes);
+  const step = bsz > 128 ? Math.max(1, Math.floor(bsz / 64)) : 1;
+  for (let i = 0; i < targetRes; i++) {
     let mx = 0;
     const s = i * bsz, e = Math.min(s + bsz, len);
-    for (let j = s; j < e; j++) { const a = Math.abs(ch[j]); if (a > mx) mx = a; }
+    for (let j = s; j < e; j += step) {
+      const a = Math.abs(ch[j]);
+      if (a > mx) mx = a;
+    }
     out[i] = mx;
   }
   return out;
 }
 
 // Draw waveform showing only the [clipOffset, clipOffset+clipDuration] window of the peaks array
-function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDuration, color, selected, clip = null) {
+function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDuration, color, selected, clip = null, sx = 0, wrapW = 100000) {
   if (!peaks || w <= 1 || h <= 1) return;
   const isLight = S.theme === 'light';
   const N = peaks.length;
@@ -3062,6 +3087,11 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
   const pEnd   = Math.ceil(endFrac * N);
   const pCount = Math.max(1, pEnd - pStart);
   const mid = y + h / 2, amp = h / 2 - 3;
+
+  // Viewport horizontal culling: only draw slices within the visible viewport!
+  const visLeftPx = Math.max(0, sx - x);
+  const visRightPx = Math.min(w, sx + wrapW - x);
+  if (visRightPx <= visLeftPx) return;
 
   // Theme resolution
   const theme = WAVEFORM_THEMES[S.waveformTheme] || WAVEFORM_THEMES.cyberpunk;
@@ -3077,13 +3107,13 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
   }
   ctx.clip();
 
-  // Background tint
+  // Background tint (only across visible segment)
   if (isLight) {
     ctx.fillStyle = selected ? primaryCol + '33' : primaryCol + '14';
   } else {
     ctx.fillStyle = selected ? primaryCol + '2b' : primaryCol + '12';
   }
-  ctx.fillRect(x, y, w, h);
+  ctx.fillRect(x + visLeftPx, y, visRightPx - visLeftPx, h);
 
   // Waveform gradient (outer silhouette)
   const grad = ctx.createLinearGradient(0, y, 0, y + h);
@@ -3102,9 +3132,10 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
   const totalScale = vStretch * clipGainMult;
   const barStep = w > 140 ? 2 : 1;
   
-  // Layer 1: Outer Peak Silhouette
+  // Layer 1: Outer Peak Silhouette (scans ONLY visible horizontal pixels)
   ctx.fillStyle = grad;
-  for (let px = 0; px < w; px += barStep) {
+  const startPx = Math.floor(visLeftPx / barStep) * barStep;
+  for (let px = startPx; px < visRightPx; px += barStep) {
     const fi = pStart + Math.floor((px / w) * pCount);
     const peak = peaks[Math.min(fi, N - 1)] || 0;
     const bh = Math.min(amp, Math.max(1, peak * amp * totalScale));
@@ -3114,7 +3145,9 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
   // Layer 2: Sub-pixel RMS Energy Core (showing vocal density)
   if (h >= 40) {
     ctx.fillStyle = isLight ? 'rgba(15,23,42,0.30)' : 'rgba(255,255,255,0.40)';
-    for (let px = 0; px < w; px += barStep * 2) {
+    const coreStep = barStep * 2;
+    const startCorePx = Math.floor(visLeftPx / coreStep) * coreStep;
+    for (let px = startCorePx; px < visRightPx; px += coreStep) {
       const fi = pStart + Math.floor((px / w) * pCount);
       const peak = peaks[Math.min(fi, N - 1)] || 0;
       const coreH = Math.min(amp, Math.max(1, peak * 0.58 * amp * totalScale));
@@ -3129,42 +3162,46 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
 
     if (fadeInSec > 0) {
       const finW = Math.min(w * 0.5, fadeInSec * S.zoom);
-      ctx.fillStyle = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.14)';
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + finW, y);
-      ctx.lineTo(x, y + h);
-      ctx.closePath();
-      ctx.fill();
+      if (x + finW >= sx && x <= sx + wrapW) {
+        ctx.fillStyle = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.14)';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + finW, y);
+        ctx.lineTo(x, y + h);
+        ctx.closePath();
+        ctx.fill();
 
-      // Top corner fade-in handle
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(x + finW, y + 4, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+        // Top corner fade-in handle
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x + finW, y + 4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
     }
 
     if (fadeOutSec > 0) {
       const foutW = Math.min(w * 0.5, fadeOutSec * S.zoom);
-      ctx.fillStyle = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.14)';
-      ctx.beginPath();
-      ctx.moveTo(x + w, y);
-      ctx.lineTo(x + w - foutW, y);
-      ctx.lineTo(x + w, y + h);
-      ctx.closePath();
-      ctx.fill();
+      if (x + w >= sx && x + w - foutW <= sx + wrapW) {
+        ctx.fillStyle = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.14)';
+        ctx.beginPath();
+        ctx.moveTo(x + w, y);
+        ctx.lineTo(x + w - foutW, y);
+        ctx.lineTo(x + w, y + h);
+        ctx.closePath();
+        ctx.fill();
 
-      // Top corner fade-out handle
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(x + w - foutW, y + 4, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+        // Top corner fade-out handle
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x + w - foutW, y + 4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
     }
 
     // Layer 4: Volume Automation Rubber-Banding
@@ -3193,6 +3230,7 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
         // Draw node points
         for (const pt of sortedEnv) {
           const nx = x + Math.min(w, Math.max(0, (pt.t / clip.duration) * w));
+          if (nx < sx - 10 || nx > sx + wrapW + 10) continue;
           const ny = mid - (pt.v - 1.0) * (amp - 2);
           ctx.fillStyle = '#f59e0b';
           ctx.beginPath();
@@ -3222,7 +3260,7 @@ function drawWaveform(ctx, x, y, w, h, peaks, mediaDuration, clipOffset, clipDur
 }
 
 // ─────────────────────────────────────────────────────────────────
-// TIMELINE RENDERER
+// TIMELINE RENDERER (VIEWPORT VIRTUALIZED FOR UNLIMITED FILE SIZES)
 // ─────────────────────────────────────────────────────────────────
 const rulerEl = document.getElementById('ruler-canvas');
 const rulerCtx = rulerEl.getContext('2d');
@@ -3235,47 +3273,67 @@ function renderTimeline() {
   const wrapW = scrollWrap.clientWidth  || 600;
   const wrapH = scrollWrap.clientHeight || 200;
   const totalSec = totalDuration();
-  const canvasW = Math.max(wrapW, Math.ceil(totalSec * S.zoom) + 200);
-  const canvasH = Math.max(wrapH, getTotalTracksHeight() + 20);
+  const totalW = Math.max(wrapW, Math.ceil(totalSec * S.zoom) + 200);
+  const totalH = Math.max(wrapH, getTotalTracksHeight() + 20);
 
-  tlEl.width  = canvasW;
-  tlEl.height = canvasH;
+  // 1. Maintain virtual scroll spacer so the scroll container has the exact project width & scrollbar
+  let spacer = document.getElementById('tl-scroll-spacer');
+  if (!spacer) {
+    spacer = document.createElement('div');
+    spacer.id = 'tl-scroll-spacer';
+    scrollWrap.insertBefore(spacer, tlEl);
+  }
+  spacer.style.width  = totalW + 'px';
+  spacer.style.height = totalH + 'px';
+
+  // 2. Physical canvas is strictly sized to visible viewport dimensions — NEVER crashes browser canvas limits!
+  tlEl.width  = wrapW;
+  tlEl.height = totalH;
+  tlEl.style.width  = wrapW + 'px';
+  tlEl.style.height = totalH + 'px';
   rulerEl.width = rulerEl.parentElement.clientWidth || wrapW;
 
   const sx = scrollWrap.scrollLeft;
 
-  // Draw ruler
+  // 3. Draw synchronized ruler
   drawRuler(rulerCtx, rulerEl.width, RULER_H, sx);
 
-  // Clear
-  tlCtx.clearRect(0, 0, canvasW, canvasH);
+  // 4. Clear viewport canvas
+  tlCtx.clearRect(0, 0, wrapW, totalH);
 
-  // Track backgrounds
+  // 5. Track backgrounds (drawn across visible width)
   for (let i = 0; i < S.tracks.length; i++) {
     const ty = getTrackTop(i);
     const th = getTrackHeight(i);
     tlCtx.fillStyle = isLight
       ? (i % 2 === 0 ? '#ffffff' : '#f8fafc')
       : (i % 2 === 0 ? '#101018' : '#13131c');
-    tlCtx.fillRect(0, ty, canvasW, th);
+    tlCtx.fillRect(0, ty, wrapW, th);
     tlCtx.strokeStyle = isLight ? '#e2e8f0' : '#1e1e2c';
     tlCtx.lineWidth = 1;
     tlCtx.beginPath();
     tlCtx.moveTo(0, ty + th - .5);
-    tlCtx.lineTo(canvasW, ty + th - .5);
+    tlCtx.lineTo(wrapW, ty + th - .5);
     tlCtx.stroke();
   }
 
-  // Time grid
-  const gridStep = S.zoom >= 300 ? 0.5 : S.zoom >= 80 ? 1 : S.zoom >= 30 ? 5 : 10;
+  // 6. Enter translated project space (-sx)
+  tlCtx.save();
+  tlCtx.translate(-sx, 0);
+
+  // Time grid (strictly culled to visible range)
+  const step = getRulerStep(S.zoom);
+  const gridStep = step;
   tlCtx.strokeStyle = isLight ? 'rgba(0, 0, 0, 0.06)' : '#1c1c28';
   tlCtx.lineWidth = 1;
-  for (let t = 0; t <= totalSec + gridStep; t += gridStep) {
+  const startGridT = Math.max(0, Math.floor(sx / (gridStep * S.zoom)) * gridStep);
+  const endGridT   = Math.min(totalSec + gridStep, Math.ceil((sx + wrapW) / (gridStep * S.zoom)) * gridStep);
+  for (let t = startGridT; t <= endGridT; t += gridStep) {
     const gx = Math.round(t * S.zoom) + .5;
-    tlCtx.beginPath(); tlCtx.moveTo(gx, 0); tlCtx.lineTo(gx, canvasH); tlCtx.stroke();
+    tlCtx.beginPath(); tlCtx.moveTo(gx, 0); tlCtx.lineTo(gx, totalH); tlCtx.stroke();
   }
 
-  // Clips
+  // Clips (culled to visible viewport)
   for (let ti = 0; ti < S.tracks.length; ti++) {
     const track = S.tracks[ti];
     const ty = getTrackTop(ti);
@@ -3284,42 +3342,50 @@ function renderTimeline() {
       const media = getMedia(clip.mediaId);
       const cx = clip.startTime * S.zoom;
       const cw = Math.max(2, clip.duration * S.zoom);
+      // Skip clip completely if offscreen
+      if (cx + cw < sx || cx > sx + wrapW) continue;
+
       const sel = clip.id === S.selectedClipId;
 
       if (media?.peaks) {
         drawWaveform(tlCtx, cx, ty + 2, cw, th - 4,
           media.peaks, media.duration, clip.offsetInMedia, clip.duration,
-          clip.color || CLIP_COLORS[0], sel, clip);
+          clip.color || CLIP_COLORS[0], sel, clip, sx, wrapW);
       } else {
         tlCtx.fillStyle = (clip.color || CLIP_COLORS[0]) + (isLight ? '55' : '44');
         tlCtx.fillRect(cx, ty + 2, cw, th - 4);
       }
 
-      // Clip label pill badge for 100% legibility in both themes
+      // Clip label badge (pinned so it stays visible even when clip start is scrolled off to the left!)
       tlCtx.save();
-      tlCtx.beginPath(); tlCtx.rect(cx + 2, ty + 2, cw - 4, th - 4); tlCtx.clip();
+      tlCtx.beginPath();
+      const visClipStart = Math.max(cx + 2, sx + 2);
+      const visClipEnd   = Math.min(cx + cw - 2, sx + wrapW - 2);
+      tlCtx.rect(visClipStart, ty + 2, Math.max(4, visClipEnd - visClipStart), th - 4);
+      tlCtx.clip();
       tlCtx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       const gainTag = (clip.gainDb && Math.abs(clip.gainDb) >= 0.1) ? ` [${clip.gainDb > 0 ? '+' : ''}${clip.gainDb.toFixed(1)}dB]` : '';
       const labelText = (media ? media.name : '?') + gainTag;
       const textMetrics = tlCtx.measureText(labelText);
       const badgeW = Math.min(cw - 8, textMetrics.width + 10);
+      const badgeX = Math.max(cx + 4, Math.min(sx + 6, cx + cw - badgeW - 4));
       if (badgeW > 12) {
         tlCtx.fillStyle = isLight ? 'rgba(255, 255, 255, 0.90)' : 'rgba(15, 17, 26, 0.82)';
         if (tlCtx.roundRect) {
-          tlCtx.beginPath(); tlCtx.roundRect(cx + 4, ty + 4, badgeW, 15, 3); tlCtx.fill();
+          tlCtx.beginPath(); tlCtx.roundRect(badgeX, ty + 4, badgeW, 15, 3); tlCtx.fill();
         } else {
-          tlCtx.fillRect(cx + 4, ty + 4, badgeW, 15);
+          tlCtx.fillRect(badgeX, ty + 4, badgeW, 15);
         }
         tlCtx.fillStyle = isLight ? '#0f172a' : '#f8fafc';
-        tlCtx.fillText(labelText, cx + 8, ty + 15);
+        tlCtx.fillText(labelText, badgeX + 4, ty + 15);
       }
       tlCtx.restore();
 
       // Trim handles
       if (sel) {
         tlCtx.fillStyle = isLight ? '#2563eb' : 'rgba(255,255,255,.85)';
-        tlCtx.fillRect(cx, ty + 2, 5, th - 4);
-        tlCtx.fillRect(cx + cw - 5, ty + 2, 5, th - 4);
+        if (cx >= sx - 10 && cx <= sx + wrapW + 10) tlCtx.fillRect(cx, ty + 2, 5, th - 4);
+        if (cx + cw >= sx - 10 && cx + cw <= sx + wrapW + 10) tlCtx.fillRect(cx + cw - 5, ty + 2, 5, th - 4);
       }
 
       // Muted overlay
@@ -3328,7 +3394,7 @@ function renderTimeline() {
         tlCtx.fillRect(cx, ty + 2, cw, th - 4);
         tlCtx.fillStyle = isLight ? '#475569' : '#888';
         tlCtx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        tlCtx.fillText('MUTED', cx + 6, ty + th / 2 + 4);
+        tlCtx.fillText('MUTED', Math.max(cx + 6, sx + 6), ty + th / 2 + 4);
       }
     }
   }
@@ -3339,16 +3405,18 @@ function renderTimeline() {
     if (rti >= 0) {
       const rx = recordStartTime * S.zoom;
       const rw = Math.max(6, (S.playheadTime - recordStartTime) * S.zoom);
-      const ry = getTrackTop(rti);
-      const rh = getTrackHeight(rti);
-      tlCtx.fillStyle = 'rgba(239, 68, 68, 0.35)';
-      tlCtx.fillRect(rx, ry + 2, rw, rh - 4);
-      tlCtx.strokeStyle = '#ef4444';
-      tlCtx.lineWidth = 1.5;
-      tlCtx.strokeRect(rx, ry + 2, rw, rh - 4);
-      tlCtx.fillStyle = '#ffffff';
-      tlCtx.font = 'bold 10px sans-serif';
-      tlCtx.fillText('● REC', rx + 6, ry + 16);
+      if (rx + rw >= sx && rx <= sx + wrapW) {
+        const ry = getTrackTop(rti);
+        const rh = getTrackHeight(rti);
+        tlCtx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+        tlCtx.fillRect(rx, ry + 2, rw, rh - 4);
+        tlCtx.strokeStyle = '#ef4444';
+        tlCtx.lineWidth = 1.5;
+        tlCtx.strokeRect(rx, ry + 2, rw, rh - 4);
+        tlCtx.fillStyle = '#ffffff';
+        tlCtx.font = 'bold 10px sans-serif';
+        tlCtx.fillText('● REC', Math.max(rx + 6, sx + 6), ry + 16);
+      }
     }
   }
 
@@ -3358,8 +3426,10 @@ function renderTimeline() {
     tlCtx.setLineDash([3, 3]);
     S.markers.forEach(m => {
       const mx = Math.round(m.time * S.zoom) + 0.5;
-      tlCtx.strokeStyle = (m.color || '#f59e0b') + '66';
-      tlCtx.beginPath(); tlCtx.moveTo(mx, 0); tlCtx.lineTo(mx, canvasH); tlCtx.stroke();
+      if (mx >= sx - 2 && mx <= sx + wrapW + 2) {
+        tlCtx.strokeStyle = (m.color || '#f59e0b') + '66';
+        tlCtx.beginPath(); tlCtx.moveTo(mx, 0); tlCtx.lineTo(mx, totalH); tlCtx.stroke();
+      }
     });
     tlCtx.restore();
   }
@@ -3374,19 +3444,54 @@ function renderTimeline() {
       const cx = sel.clip.startTime * S.zoom;
       const vx = cx + S.vowelStart * S.zoom;
       const vw = (S.vowelEnd - S.vowelStart) * S.zoom;
-      tlCtx.fillStyle   = isLight ? 'rgba(217, 119, 6, 0.22)' : 'rgba(245,166,35,.22)';
-      tlCtx.fillRect(vx, ty + 2, vw, th - 4);
-      tlCtx.strokeStyle = isLight ? '#d97706' : '#f5a623'; tlCtx.lineWidth = 1.5;
-      tlCtx.strokeRect(vx + .5, ty + 2.5, vw - 1, th - 5);
+      if (vx + vw >= sx && vx <= sx + wrapW) {
+        tlCtx.fillStyle   = isLight ? 'rgba(217, 119, 6, 0.22)' : 'rgba(245,166,35,.22)';
+        tlCtx.fillRect(vx, ty + 2, vw, th - 4);
+        tlCtx.strokeStyle = isLight ? '#d97706' : '#f5a623'; tlCtx.lineWidth = 1.5;
+        tlCtx.strokeRect(vx + .5, ty + 2.5, vw - 1, th - 5);
+      }
     }
   }
 
   // Playhead
   const phx = Math.round(S.playheadTime * S.zoom) + .5;
-  tlCtx.strokeStyle = '#ef4444'; tlCtx.lineWidth = 1.5;
-  tlCtx.beginPath(); tlCtx.moveTo(phx, 0); tlCtx.lineTo(phx, canvasH); tlCtx.stroke();
-  tlCtx.fillStyle = '#ef4444';
-  tlCtx.beginPath(); tlCtx.moveTo(phx - 6, 0); tlCtx.lineTo(phx + 6, 0); tlCtx.lineTo(phx, 11); tlCtx.fill();
+  if (phx >= sx - 10 && phx <= sx + wrapW + 10) {
+    tlCtx.strokeStyle = '#ef4444'; tlCtx.lineWidth = 1.5;
+    tlCtx.beginPath(); tlCtx.moveTo(phx, 0); tlCtx.lineTo(phx, totalH); tlCtx.stroke();
+    tlCtx.fillStyle = '#ef4444';
+    tlCtx.beginPath(); tlCtx.moveTo(phx - 6, 0); tlCtx.lineTo(phx + 6, 0); tlCtx.lineTo(phx, 11); tlCtx.fill();
+  }
+
+  tlCtx.restore();
+
+  // Playhead follow auto-scroll during playback
+  if (S.isPlaying) {
+    if (phx > sx + wrapW - 60) {
+      scrollWrap.scrollLeft = phx - 60;
+    } else if (phx < sx) {
+      scrollWrap.scrollLeft = Math.max(0, phx - 60);
+    }
+  }
+}
+
+function getRulerStep(zoom) {
+  const steps = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+  const minSec = 65 / Math.max(0.01, zoom);
+  for (const s of steps) {
+    if (s >= minSec) return s;
+  }
+  return 3600;
+}
+
+function fmtRulerTime(sec) {
+  if (isNaN(sec) || sec < 0) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  return `${m}:${String(s).padStart(2,'0')}`;
 }
 
 function drawRuler(ctx, W, H, scrollLeft) {
@@ -3394,11 +3499,7 @@ function drawRuler(ctx, W, H, scrollLeft) {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = isLight ? '#e2e8f0' : '#1a1a26'; ctx.fillRect(0, 0, W, H);
   const zoom = S.zoom;
-  let step = 1;
-  if (zoom > 500) step = 0.1;
-  else if (zoom > 150) step = 0.5;
-  else if (zoom < 25) step = 10;
-  else if (zoom < 50) step = 5;
+  const step = getRulerStep(zoom);
 
   const startSec = scrollLeft / zoom;
   const endSec   = (scrollLeft + W) / zoom;
@@ -3407,14 +3508,10 @@ function drawRuler(ctx, W, H, scrollLeft) {
 
   for (let t = Math.floor(startSec / step) * step; t <= endSec + step; t += step) {
     const x = Math.round(t * zoom - scrollLeft);
-    if (x < -10 || x > W + 10) continue;
+    if (x < -20 || x > W + 20) continue;
     ctx.beginPath(); ctx.moveTo(x + .5, H); ctx.lineTo(x + .5, H - 7); ctx.stroke();
-    ctx.fillText(fmtTime(t), x + 2, H - 9);
+    ctx.fillText(fmtRulerTime(t), x + 2, H - 9);
   }
-
-  // Bottom border line on ruler
-  ctx.strokeStyle = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.08)';
-  ctx.beginPath(); ctx.moveTo(0, H - 0.5); ctx.lineTo(W, H - 0.5); ctx.stroke();
 
   // Timeline Markers on ruler
   if (S.markers && S.markers.length > 0) {
@@ -3430,16 +3527,27 @@ function drawRuler(ctx, W, H, scrollLeft) {
       ctx.lineTo(mx + 6, H - 8);
       ctx.closePath();
       ctx.fill();
-
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 8px monospace';
-      ctx.fillText(m.name || 'M', mx - 4, 10);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.fillText(m.name, mx + 6, H - 7);
     });
   }
 
   // Playhead on ruler
   const phx = Math.round(S.playheadTime * zoom - scrollLeft);
-  ctx.fillStyle = '#ef4444'; ctx.fillRect(phx - 1, 0, 2, H);
+  if (phx >= -10 && phx <= W + 10) {
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(phx - 5, 0);
+    ctx.lineTo(phx + 5, 0);
+    ctx.lineTo(phx, 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Bottom border line on ruler
+  ctx.strokeStyle = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.08)';
+  ctx.beginPath(); ctx.moveTo(0, H - 0.5); ctx.lineTo(W, H - 0.5); ctx.stroke();
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -4333,6 +4441,15 @@ function addMediaToTimelineAt(mediaId, trackId, startTime) {
   S.selectedClipId = clip.id;
   S.vowelStart = null;
   S.vowelEnd = null;
+
+  // For long audio recordings (> 90s, like full voice tracks / podcasts / long lessons),
+  // intelligently auto-fit zoom so the user sees their entire recording immediately!
+  if (media.duration > 90 && S.tracks.every(t => t.clips.length <= 1)) {
+    const wrapW = scrollWrap.clientWidth || 800;
+    const fitZoom = Math.max(0.2, Math.min(S.zoom, (wrapW - 60) / media.duration));
+    setZoom(fitZoom);
+  }
+
   renderTimeline();
   renderTrackHeaders();
   renderVowelPanel();
@@ -4374,14 +4491,16 @@ async function importFiles(files, targetPlacement = null) {
     try {
       const arrayBuf = await file.arrayBuffer();
       showProc(`Decoding audio…`, 30);
+      await pause(10);
       let audioBuffer;
       try {
-        audioBuffer = await actx.decodeAudioData(arrayBuf.slice(0));
+        audioBuffer = await actx.decodeAudioData(arrayBuf);
       } catch(decErr) {
         status(`Could not decode "${file.name}" — ${decErr.message}`);
         hideProc(); continue;
       }
       showProc(`Computing waveform…`, 75);
+      await pause(10);
       const peaks = computePeaks(audioBuffer, PEAK_RES);
       const color = CLIP_COLORS[S.colorIdx++ % CLIP_COLORS.length];
       const media = {
@@ -7129,7 +7248,7 @@ const TC_STATE = {
 function handleTimelinePointerDown(clientX, clientY, isTouch = false) {
   ensureCtx();
   const r = tlEl.getBoundingClientRect();
-  const mx = clientX - r.left;
+  const mx = clientX - r.left + scrollWrap.scrollLeft;
   const my = clientY - r.top;
 
   // Check if clicking near track lane bottom divider to drag-resize track height
@@ -7234,7 +7353,7 @@ tlEl.addEventListener('touchstart', e => {
 tlEl.addEventListener('mousemove', e => {
   if (S.drag || S.trackResizeDrag) return;
   const r = tlEl.getBoundingClientRect();
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const mx = e.clientX - r.left + scrollWrap.scrollLeft, my = e.clientY - r.top;
 
   // Check if hovering near a track divider
   for (let i = 0; i < S.tracks.length; i++) {
@@ -7269,7 +7388,7 @@ tlEl.addEventListener('mousemove', e => {
 tlEl.addEventListener('dblclick', e => {
   if (!S.showEnvelopes) return;
   const r = tlEl.getBoundingClientRect();
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const mx = e.clientX - r.left + scrollWrap.scrollLeft, my = e.clientY - r.top;
   const ti = getTrackIndexAtY(my);
   if (ti < 0 || ti >= S.tracks.length) return;
   const track = S.tracks[ti];
@@ -7317,7 +7436,7 @@ function handleTimelinePointerMove(clientX, clientY) {
 
   if (S.drag) {
     const r  = tlEl.getBoundingClientRect();
-    const mx = clientX - r.left;
+    const mx = clientX - r.left + scrollWrap.scrollLeft;
     const my = (typeof clientY === 'number') ? (clientY - r.top) : S.drag.startMy;
     const dt = (mx - S.drag.startMx) / S.zoom;
     const { clip, type, node, ti } = S.drag;
@@ -7527,7 +7646,8 @@ window.addEventListener('resize', () => {
 document.getElementById('timeline-container').addEventListener('wheel', e => {
   if (!e.ctrlKey && !e.metaKey) return;
   e.preventDefault();
-  setZoom(S.zoom + (e.deltaY > 0 ? -15 : 15));
+  const factor = e.deltaY > 0 ? 0.8 : 1.25;
+  setZoom(S.zoom * factor);
 }, { passive: false });
 
 // Sync track headers vertical scroll
@@ -7554,7 +7674,7 @@ scrollWrap.addEventListener('drop', e => {
       const data = JSON.parse(raw);
       if (data && data.type === 'ixr-media') {
         const r = tlEl.getBoundingClientRect();
-        const mx = e.clientX - r.left;
+        const mx = e.clientX - r.left + scrollWrap.scrollLeft;
         const my = e.clientY - r.top;
         let ti = getTrackIndexAtY(my);
         if (ti < 0) ti = 0;
@@ -7572,7 +7692,7 @@ scrollWrap.addEventListener('drop', e => {
     const files = Array.from(e.dataTransfer.files).filter(isAudioOrVideoFile);
     if (files.length) {
       const r = tlEl.getBoundingClientRect();
-      const mx = e.clientX - r.left;
+      const mx = e.clientX - r.left + scrollWrap.scrollLeft;
       const my = e.clientY - r.top;
       let ti = getTrackIndexAtY(my);
       if (ti < 0) ti = 0;
@@ -7644,8 +7764,20 @@ function updateStatusBar() {
 function setZoom(z) {
   S.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
   document.getElementById('zoom-slider').value = S.zoom;
-  document.getElementById('zoom-label').textContent = `${Math.round(S.zoom)}px/s`;
+  document.getElementById('zoom-label').textContent = S.zoom < 1 ? `${S.zoom.toFixed(1)}px/s` : `${Math.round(S.zoom)}px/s`;
   renderTimeline();
+}
+function zoomToFit() {
+  const totalSec = totalDuration();
+  if (totalSec <= 0) {
+    status('Timeline is empty');
+    return;
+  }
+  const wrapW = scrollWrap.clientWidth || 800;
+  const targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, (wrapW - 40) / totalSec));
+  setZoom(targetZoom);
+  scrollWrap.scrollLeft = 0;
+  status(`Zoomed to fit entire project (${fmtTime(totalSec)})`);
 }
 function status(msg) { document.getElementById('status-msg').textContent = msg; }
 function showProc(msg, pct) {
@@ -7744,8 +7876,9 @@ document.addEventListener('drop', e => {
 });
 
 // Timeline controls
-document.getElementById('btn-zoom-in').addEventListener('click',  () => setZoom(S.zoom + 20));
-document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(S.zoom - 20));
+document.getElementById('btn-zoom-in').addEventListener('click',  () => setZoom(S.zoom < 10 ? S.zoom * 1.5 : S.zoom + 20));
+document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(S.zoom <= 10 ? S.zoom / 1.5 : S.zoom - 20));
+document.getElementById('btn-zoom-fit')?.addEventListener('click', zoomToFit);
 document.getElementById('zoom-slider').addEventListener('input',  e  => setZoom(+e.target.value));
 document.getElementById('btn-add-track').addEventListener('click', () => { addTrack(); snapshot(); });
 document.getElementById('btn-split').addEventListener('click',    splitAtPlayhead);
@@ -9861,10 +9994,16 @@ document.addEventListener('keydown', e => {
       document.getElementById('shortcuts-modal')?.classList.add('hidden');
       document.getElementById('tail-cleaner-modal')?.classList.add('hidden');
       break;
+    case 'KeyF':
+      if (e.shiftKey) {
+        e.preventDefault();
+        zoomToFit();
+      }
+      break;
     case 'Equal': case 'NumpadAdd':
-      e.preventDefault(); setZoom(S.zoom + 20); break;
+      e.preventDefault(); setZoom(S.zoom < 10 ? S.zoom * 1.5 : S.zoom + 20); break;
     case 'Minus': case 'NumpadSubtract':
-      e.preventDefault(); setZoom(S.zoom - 20); break;
+      e.preventDefault(); setZoom(S.zoom <= 10 ? S.zoom / 1.5 : S.zoom - 20); break;
     case 'BracketLeft':
       S.playheadTime = Math.max(0, S.playheadTime - 0.1);
       updateTimecode(); renderTimeline(); break;
@@ -9887,6 +10026,7 @@ ro.observe(document.getElementById('center-panel'));
 ro.observe(document.getElementById('vp-waveform-wrap'));
 ro.observe(document.getElementById('eq-section'));
 
+// ─────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────
 // GOOGLE DRIVE INTEGRATION (CHROME EXTENSION RUNTIME BRIDGE)
 // ─────────────────────────────────────────────────────────────────
@@ -10004,6 +10144,12 @@ async function checkAndLoadDriveAudio(fileId, fileName) {
     track.clips.push(clip);
     S.selectedClipId = clip.id;
 
+    if (audioBuf.duration > 90 && S.tracks.every(t => t.clips.length <= 1)) {
+      const wrapW = scrollWrap.clientWidth || 800;
+      const fitZoom = Math.max(0.2, Math.min(S.zoom, (wrapW - 60) / audioBuf.duration));
+      setZoom(fitZoom);
+    }
+
     snapshot();
     hideProc();
 
@@ -10023,7 +10169,6 @@ async function checkAndLoadDriveAudio(fileId, fileName) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────────
 async function init() {
@@ -10073,7 +10218,6 @@ async function init() {
   if (trkSlider) trkSlider.value = TRACK_H;
   const hBtn = document.getElementById('btn-track-height');
   if (hBtn) hBtn.textContent = `↕ ${TRACK_H}px`;
-
   // Check for Google Drive import parameter
   const urlParams = new URLSearchParams(window.location.search);
   const driveFileId = urlParams.get('fileId');
